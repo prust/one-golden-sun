@@ -23,6 +23,9 @@ function love.load()
   camera = gamera.new(0, 0, 2000, 2000) -- TODO: pull this from the map?
   camera:setScale(2.0)
 
+  music = love.audio.newSource("assets/intro.mp3")
+  music:play()
+  
   map = sti("world2.lua", {"bump"})
   for i, tileset in ipairs(map.tilesets) do
     local name = tileset.image_filename:gsub('assets/', ''):gsub('.png', '')
