@@ -1,7 +1,9 @@
 local anim8 = require('anim8')
 local sti = require('sti')
-local gamera = require("gamera")
--- require('mobdebug').start()
+local gamera = require('gamera')
+local _ = require('underscore')
+require('game')
+--require('mobdebug').start()
 
 local ver = '0.0.1'
 local width, height
@@ -9,6 +11,9 @@ local camera
 local map
 local auto_scroll_region = 0.12 -- 12% of the width/height on all sides of window
 local auto_scroll_speed = 500
+local tilesets = {}
+local tilesetsByName = {}
+local types = {'Road'}
 
 function love.load()
   love.graphics.setDefaultFilter( 'nearest', 'nearest' )
@@ -18,7 +23,19 @@ function love.load()
   camera = gamera.new(0, 0, 2000, 2000) -- TODO: pull this from the map?
   camera:setScale(2.0)
 
-  map = sti("world.lua", {"bump"})
+  map = sti("world2.lua", {"bump"})
+  for i, tileset in ipairs(map.tilesets) do
+    local name = tileset.image_filename:gsub('assets/', ''):gsub('.png', '')
+    local tileset_info = {
+      type = name:find('Road') and 'Road' or nil,
+      tiles = {}
+    }
+    tilesets[i] = tileset_info
+    tilesetsByName[name] = tileset_info
+  end
+  for i, tile in ipairs(map.tiles) do
+    tilesets[tile.tileset].tiles[tile.id] = tile
+  end
 end
 
 function love.update(dt)
@@ -51,6 +68,13 @@ function love.update(dt)
   end
 end
 
+function love.mousereleased(x, y, button, istouch)
+  if button == 1 and onLeftClick then
+    onLeftClick(x, y)
+  elseif button == 2 and onRightClick then
+    onRightClick(x, y)
+  end
+end
 
 function love.draw()
   camera:draw(function(l, t, w, h)
@@ -64,3 +88,67 @@ function love.resize(w, h)
   map:resize(width, height)
   camera:setWindow(0, 0, width, height)
 end
+
+-- helper functions
+function isRoad(x, y)
+  local tile = getTile(tileCoords(x, y))
+  return getType(tile) == 'Road'
+end
+
+function canPlaceRoad(x, y)
+  local tile_x, tile_y = tileCoords(x, y)
+  local adj_tiles = getAdjacentTiles(tile_x, tile_y)
+  local adj_roads = _.filter(adj_tiles, function(tile) return getType(tile) == 'Road' end)
+  return #adj_roads == 1
+end
+
+function placeRoad(x, y)
+  local tile_x, tile_y = tileCoords(x, y)
+  local prev_instance = getTileInstance(tile_x, tile_y)
+  local new_tile = tilesetsByName['terrain'].tiles[169]
+
+  -- update the live STI data that changes what is rendered
+  map:swapTile(prev_instance, new_tile)
+
+  -- update the layers data, which we're using
+  map.layers['Terrain'].data[tile_y][tile_x] = {gid = new_tile.gid}
+end
+
+function getType(tile)
+  return tilesets[tile.tileset].type
+end
+
+function getAdjacentTiles(tile_x, tile_y)
+  return {
+    getTile(tile_x - 1, tile_y),
+    getTile(tile_x + 1, tile_y),
+    getTile(tile_x, tile_y + 1),
+    getTile(tile_x, tile_y - 1)
+  }
+end
+
+function getTile(tile_x, tile_y)
+  local tile = map.layers['Terrain'].data[tile_y][tile_x]
+  return map.tiles[tile.gid]
+end
+
+function getTileInstance(tile_x, tile_y)
+  local instance = map.layers['Terrain'].data[tile_y][tile_x]
+
+  -- Go find actual instance
+  local matching_instance
+  for i, ins in ipairs(map.tileInstances[instance.gid]) do
+    if ins.x == (tile_x - 1) * 20 and ins.y == (tile_y - 1) * 20 then
+      matching_instance = ins
+    end
+  end
+  return matching_instance
+end
+
+function tileCoords(x, y)
+  x, y = camera:toWorld(x, y)
+  local tile_x, tile_y = map:convertPixelToTile(x, y)
+  return math.floor(tile_x) + 1, math.floor(tile_y) + 1
+end
+
+

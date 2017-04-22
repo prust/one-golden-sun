@@ -96,6 +96,7 @@ function Map:init(path, plugins, ox, oy)
 		assert(tileset.image, "STI does not support Tile Collections.\nYou need to create a Texture Atlas.")
 
 		-- Cache images
+		tileset.image_filename = tileset.image -- hack tiled so we retain the image filename
 		local formatted_path = utils.format_path(path .. tileset.image)
 		if not STI.cache[formatted_path] then
 			utils.cache_image(STI, formatted_path)
@@ -1020,6 +1021,9 @@ function Map:swapTile(instance, tile)
 	end
 
 	-- Add new tile instance
+	if not self.tileInstances[tile.gid] then
+	  self.tileInstances[tile.gid] = {}
+	end
 	table.insert(self.tileInstances[tile.gid], {
 		layer = instance.layer,
 		batch = instance.batch,
