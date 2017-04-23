@@ -1,5 +1,5 @@
 -- high-level game logic is here
-function onLeftClick(x, y)
+function whileLeftMouseDown(x, y)
   if not isRoad(x, y) then
     if (canPlaceRoad(x, y)) then
       placeRoad(x, y)

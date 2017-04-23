@@ -45,6 +45,9 @@ end
 function love.update(dt)
   map:update(dt)
   mouse_x, mouse_y = love.mouse.getPosition()
+  if whileLeftMouseDown and love.mouse.isDown(1) then
+    whileLeftMouseDown(mouse_x, mouse_y)
+  end
 
   -- auto-scroll if mouse is near window edges (and still in the window)
   if mouse_x > 0 and mouse_x < width and mouse_y > 0 and mouse_y < width then
@@ -160,7 +163,7 @@ function placeTile(new_tile, tile_x, tile_y)
   if not prev_instance then
     return
   end
-  
+
   -- update the live STI data that changes what is rendered
   map:swapTile(prev_instance, new_tile)
 
