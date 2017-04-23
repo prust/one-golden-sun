@@ -8,6 +8,11 @@ require('game')
 local ver = '0.0.1'
 local width, height
 local camera
+local music
+local turret_img
+local turret_frames = {}
+local turrets = {}
+local direction = {}
 local map
 local auto_scroll_region = 0.12 -- 12% of the width/height on all sides of window
 local auto_scroll_speed = 500
@@ -15,6 +20,9 @@ local tilesets = {}
 local tilesetsByName = {}
 local types = {'Road'}
 local zoom = 2.0
+
+-- GLOBALS shared w/ game.lua
+active_turret = nil
 
 function love.load()
   love.graphics.setDefaultFilter( 'nearest', 'nearest' )
@@ -24,10 +32,28 @@ function love.load()
   camera = gamera.new(0, 0, 2000, 2000) -- TODO: pull this from the map?
   camera:setScale(zoom)
 
-  music = love.audio.newSource("assets/intro.mp3")
+  music = love.audio.newSource('assets/intro.mp3')
   music:play()
 
-  map = sti("world2.lua", {"bump"})
+  turret_img = love.graphics.newImage('assets/turret.png')
+  turret_frames[1] = love.graphics.newQuad(80, 0, 80, 80, turret_img:getDimensions())
+  direction[1] = {0, -1}
+  turret_frames[2] = love.graphics.newQuad(80, 80, 80, 80, turret_img:getDimensions())
+  direction[2] = {1, -1}
+  turret_frames[3] = love.graphics.newQuad(80, 160, 80, 80, turret_img:getDimensions())
+  direction[3] = {1, 0}
+  turret_frames[4] = love.graphics.newQuad(80, 240, 80, 80, turret_img:getDimensions())
+  direction[4] = {1, 1}
+  turret_frames[5] = love.graphics.newQuad(0, 0, 80, 80, turret_img:getDimensions())
+  direction[5] = {0, 1}
+  turret_frames[6] = love.graphics.newQuad(0, 240, 80, 80, turret_img:getDimensions())
+  direction[6] = {-1, 1}
+  turret_frames[7] = love.graphics.newQuad(0, 160, 80, 80, turret_img:getDimensions())
+  direction[7] = {-1, 0}
+  turret_frames[8] = love.graphics.newQuad(0, 80, 80, 80, turret_img:getDimensions())
+  direction[8] = {-1, -1}
+
+  map = sti('world2.lua', {'bump'})
   for i, tileset in ipairs(map.tilesets) do
     local name = tileset.image_filename:gsub('assets/', ''):gsub('.png', '')
     local tileset_info = {
@@ -45,8 +71,8 @@ end
 function love.update(dt)
   map:update(dt)
   mouse_x, mouse_y = love.mouse.getPosition()
-  if whileLeftMouseDown and love.mouse.isDown(1) then
-    whileLeftMouseDown(mouse_x, mouse_y)
+  if whileMouseDown and love.mouse.isDown(1) then
+    whileMouseDown(mouse_x, mouse_y)
   end
 
   -- auto-scroll if mouse is near window edges (and still in the window)
@@ -75,6 +101,20 @@ function love.update(dt)
   end
 end
 
+function love.keypressed(key, scancode, isrepeat)
+  if onLeft and (key == 'left' or key == 'a') then
+    onLeft()
+  elseif onRight and (key == 'right' or key == 'd') then
+    onRight()
+  elseif onUp and (key == 'up' or key == 'w') then
+    onUp()
+  elseif onDown and (key == 'down' or key == 's') then
+    onDown()
+  elseif onSpace and (key == 'space') then
+    onSpace()
+  end
+end
+
 function love.mousereleased(x, y, button, istouch)
   if button == 1 and onLeftClick then
     onLeftClick(x, y)
@@ -97,6 +137,16 @@ end
 function love.draw()
   camera:draw(function(l, t, w, h)
     map:draw()
+    for i, turret in ipairs(turrets) do
+      -- wrap-around frames, protect against bad inputs from game.lua
+      if turret.frame < 1 then
+        turret.frame = #turret_frames
+      elseif turret.frame > #turret_frames then
+        turret.frame = 1
+      end
+
+      love.graphics.draw(turret_img, turret_frames[turret.frame], turret.x * 20, turret.y * 20, 0, 1, 1)
+    end
   end)
 end
 
@@ -108,6 +158,10 @@ function love.resize(w, h)
 end
 
 -- helper functions
+function fireMissile(active_turret)
+  print('missile fired!')
+end
+
 function isRoad(x, y)
   return getType(getTile(tileCoords(x, y))) == 'road'
 end
@@ -115,6 +169,24 @@ end
 function canPlaceRoad(x, y)
   local tile_x, tile_y = tileCoords(x, y)
   return #getAdjacentRoads(tile_x, tile_y) == 1
+end
+
+function canPlaceTurret(x, y)
+  if isRoad(x, y) then
+    return false
+  end
+
+  local tile_x, tile_y = tileCoords(x, y)
+  return #getAdjacentRoads(tile_x, tile_y) == 0 and
+    #getAdjacentRoads(tile_x + 1, tile_y) == 0 and
+    #getAdjacentRoads(tile_x, tile_y - 1) == 0 and
+    #getAdjacentRoads(tile_x + 1, tile_y - 1) == 0
+end
+
+function placeTurret(x, y)
+  local tile_x, tile_y = tileCoords(x, y)
+  active_turret = {x = tile_x - 2, y = tile_y - 3, frame = 2}
+  table.insert(turrets, active_turret)
 end
 
 function placeRoad(x, y)
