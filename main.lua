@@ -34,6 +34,18 @@ local tilesetsByName = {}
 local types = {'Road'}
 local zoom = 2.0
 
+local roads = {
+  ice = {
+    top = 184,
+    left = 195,
+    right = 197,
+    bottom = 208
+  }
+}
+_.keys(roads.ice, function(key)
+  roads.grass[key] = roads.ice[key] + 183
+end)
+
 -- GLOBALS shared w/ game.lua
 active_turret = nil
 
@@ -282,41 +294,56 @@ function placeRoad(x, y)
   local tile_x, tile_y = tileCoords(x, y)
   local adj_road = getAdjacentRoads(tile_x, tile_y)[1]
   local tiles = tilesetsByName['terrain'].tiles
+
+  local tile_ids
+  if isIceRoad(adj_road) then
+    tile_ids = roads.ice
+  elseif isGrassRoad(adj_road) then
+    tile_ids = roads.grass
+  end
   
   -- this is if the orientations match, this is easy
   if adj_road.alignment == 'vert' then
-    if adj_road.id == 197 then
+    if adj_road.id == tile_ids.right then
       tile_x = tile_x - 1
     end
-    placeTile(tiles[195], tile_x, tile_y)
-    placeTile(tiles[197], tile_x + 1, tile_y)
+    placeTile(tiles[tile_ids.left], tile_x, tile_y)
+    placeTile(tiles[tile_ids.right], tile_x + 1, tile_y)
 
     -- if the adjacent tile is horiz, this is a "fork" & we need to adjust the corner tiles
-    if isHorizontal(adj_road) then
+    if isHorizontal(adj_road, tile_ids) then
       placeTile(tiles[adj_road.dir > 0 and 233 or 221], tile_x, tile_y + adj_road.dir)
       placeTile(tiles[adj_road.dir > 0 and 232 or 220], tile_x + 1, tile_y + adj_road.dir)
     end 
   elseif adj_road.alignment == 'horiz' then
-    if adj_road.id == 208 then
+    if adj_road.id == tile_ids.bottom then
       tile_y = tile_y - 1
     end
-    placeTile(tiles[184], tile_x, tile_y)
-    placeTile(tiles[208], tile_x, tile_y + 1)
+    placeTile(tiles[tile_ids.top], tile_x, tile_y)
+    placeTile(tiles[tile_ids.bottom], tile_x, tile_y + 1)
 
     -- if the adjacent tile is vert, this is a "fork" & we need to also adjust the corner tiles
-    if isVertical(adj_road) then
+    if isVertical(adj_road, tile_ids) then
       placeTile(tiles[adj_road.dir > 0 and 233 or 232], tile_x + adj_road.dir, tile_y)
       placeTile(tiles[adj_road.dir > 0 and 221 or 220], tile_x + adj_road.dir, tile_y + 1)
     end
   end
 end
 
-function isVertical(tile)
-  return tile.id == 195 or tile.id == 197
+function isIceRoad(tile)
+  return tile.id >= 120 and tile.id <= 233
 end
 
-function isHorizontal(tile)
-  return tile.id == 184 or tile.id == 208
+function isGrassRoad(tile)
+  return tile.id >= 0 and tile.id <= 50
+end
+
+function isVertical(tile, tile_ids)
+  return tile.id == tile_ids.left or tile.id == tile_ids.right
+end
+
+function isHorizontal(tile, tile_ids)
+  return tile.id == tile_ids.top or tile.id == tile_ids.bottom
 end
 
 function placeTile(new_tile, tile_x, tile_y)

@@ -30,6 +30,96 @@ return {
       tilecount = 420,
       tiles = {
         {
+          id = 0,
+          properties = {
+            ["type"] = "road"
+          }
+        },
+        {
+          id = 1,
+          properties = {
+            ["type"] = "road"
+          }
+        },
+        {
+          id = 2,
+          properties = {
+            ["type"] = "road"
+          }
+        },
+        {
+          id = 12,
+          properties = {
+            ["type"] = "road"
+          }
+        },
+        {
+          id = 13,
+          properties = {
+            ["type"] = "road"
+          }
+        },
+        {
+          id = 14,
+          properties = {
+            ["type"] = "road"
+          }
+        },
+        {
+          id = 24,
+          properties = {
+            ["type"] = "road"
+          }
+        },
+        {
+          id = 25,
+          properties = {
+            ["type"] = "road"
+          }
+        },
+        {
+          id = 26,
+          properties = {
+            ["type"] = "road"
+          }
+        },
+        {
+          id = 36,
+          properties = {
+            ["type"] = "road"
+          }
+        },
+        {
+          id = 37,
+          properties = {
+            ["type"] = "road"
+          }
+        },
+        {
+          id = 38,
+          properties = {
+            ["type"] = "road"
+          }
+        },
+        {
+          id = 48,
+          properties = {
+            ["type"] = "road"
+          }
+        },
+        {
+          id = 49,
+          properties = {
+            ["type"] = "road"
+          }
+        },
+        {
+          id = 50,
+          properties = {
+            ["type"] = "road"
+          }
+        },
+        {
           id = 183,
           properties = {
             ["type"] = "road"
@@ -48,30 +138,6 @@ return {
           }
         },
         {
-          id = 186,
-          properties = {
-            ["type"] = "road"
-          }
-        },
-        {
-          id = 187,
-          properties = {
-            ["type"] = "road"
-          }
-        },
-        {
-          id = 188,
-          properties = {
-            ["type"] = "road"
-          }
-        },
-        {
-          id = 189,
-          properties = {
-            ["type"] = "road"
-          }
-        },
-        {
           id = 195,
           properties = {
             ["type"] = "road"
@@ -85,30 +151,6 @@ return {
         },
         {
           id = 197,
-          properties = {
-            ["type"] = "road"
-          }
-        },
-        {
-          id = 198,
-          properties = {
-            ["type"] = "road"
-          }
-        },
-        {
-          id = 199,
-          properties = {
-            ["type"] = "road"
-          }
-        },
-        {
-          id = 200,
-          properties = {
-            ["type"] = "road"
-          }
-        },
-        {
-          id = 201,
           properties = {
             ["type"] = "road"
           }
