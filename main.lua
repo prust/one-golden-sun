@@ -196,38 +196,38 @@ function placeRoad(x, y)
   
   -- this is if the orientations match, this is easy
   if adj_road.alignment == 'vert' then
-    if adj_road.id == 181 then
+    if adj_road.id == 197 then
       tile_x = tile_x - 1
     end
-    placeTile(tiles[179], tile_x, tile_y)
-    placeTile(tiles[181], tile_x + 1, tile_y)
+    placeTile(tiles[195], tile_x, tile_y)
+    placeTile(tiles[197], tile_x + 1, tile_y)
 
     -- if the adjacent tile is horiz, this is a "fork" & we need to adjust the corner tiles
     if isHorizontal(adj_road) then
-      placeTile(tiles[adj_road.dir > 0 and 214 or 203], tile_x, tile_y + adj_road.dir)
-      placeTile(tiles[adj_road.dir > 0 and 213 or 202], tile_x + 1, tile_y + adj_road.dir)
+      placeTile(tiles[adj_road.dir > 0 and 233 or 221], tile_x, tile_y + adj_road.dir)
+      placeTile(tiles[adj_road.dir > 0 and 232 or 220], tile_x + 1, tile_y + adj_road.dir)
     end 
   elseif adj_road.alignment == 'horiz' then
-    if adj_road.id == 191 then
+    if adj_road.id == 208 then
       tile_y = tile_y - 1
     end
-    placeTile(tiles[169], tile_x, tile_y)
-    placeTile(tiles[191], tile_x, tile_y + 1)
+    placeTile(tiles[184], tile_x, tile_y)
+    placeTile(tiles[208], tile_x, tile_y + 1)
 
     -- if the adjacent tile is vert, this is a "fork" & we need to also adjust the corner tiles
     if isVertical(adj_road) then
-      placeTile(tiles[adj_road.dir > 0 and 214 or 213], tile_x + adj_road.dir, tile_y)
-      placeTile(tiles[adj_road.dir > 0 and 203 or 202], tile_x + adj_road.dir, tile_y + 1)
+      placeTile(tiles[adj_road.dir > 0 and 233 or 232], tile_x + adj_road.dir, tile_y)
+      placeTile(tiles[adj_road.dir > 0 and 221 or 220], tile_x + adj_road.dir, tile_y + 1)
     end
   end
 end
 
 function isVertical(tile)
-  return tile.id == 179 or tile.id == 181
+  return tile.id == 195 or tile.id == 197
 end
 
 function isHorizontal(tile)
-  return tile.id == 169 or tile.id == 191
+  return tile.id == 184 or tile.id == 208
 end
 
 function placeTile(new_tile, tile_x, tile_y)
