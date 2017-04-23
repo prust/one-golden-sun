@@ -9,14 +9,24 @@ local ver = '0.0.1'
 local width, height
 local camera
 local music
+
 local turret_img
 local turret_frames = {}
 local turrets = {}
+
 local fireballs = {}
 local fireball_img
 local fireball_speed = 500
 local direction = {}
 local init_position = {}
+
+local fighters = {}
+local fighter_img
+local fighter_speed = 200
+local next_fighter_attack = love.timer.getTime() + 3 -- in 10 seconds, first fighter attack
+local min_time_btwn_attacks = 30 -- seconds
+local max_time_btwn_attacks = 90 -- seconds
+
 local map
 local auto_scroll_region = 0.12 -- 12% of the width/height on all sides of window
 local auto_scroll_speed = 500
@@ -38,6 +48,7 @@ function love.load()
   music = love.audio.newSource('assets/intro.mp3')
   music:play()
 
+  fighter_img = love.graphics.newImage('assets/enemy-ship.png')
   fireball_img = love.graphics.newImage('assets/fireball.png')
   turret_img = love.graphics.newImage('assets/turret.png')
   turret_frames[1] = love.graphics.newQuad(80, 0, 80, 80, turret_img:getDimensions())
@@ -79,6 +90,11 @@ function love.load()
 end
 
 function love.update(dt)
+  if love.timer.getTime() > next_fighter_attack then
+    startFighterAttack()
+    next_fighter_attack = love.timer.getTime() + love.math.random(min_time_btwn_attacks, max_time_btwn_attacks)
+  end
+
   map:update(dt)
   mouse_x, mouse_y = love.mouse.getPosition()
   if whileMouseDown and love.mouse.isDown(1) then
@@ -110,9 +126,12 @@ function love.update(dt)
     camera:setPosition(cam_x, cam_y)
   end
 
-  for i, fireball in ipairs(fireballs) do
-    fireball.x = fireball.x + fireball.dx * fireball_speed * dt
-    fireball.y = fireball.y + fireball.dy * fireball_speed * dt
+  local entity_tables = {fireballs, fighters}
+  for i, ent_table in ipairs(entity_tables) do
+    for i, entity in ipairs(ent_table) do
+      entity.x = entity.x + entity.dx * fireball_speed * dt
+      entity.y = entity.y + entity.dy * fireball_speed * dt
+    end
   end
 end
 
@@ -165,6 +184,9 @@ function love.draw()
     for i, fireball in ipairs(fireballs) do
       love.graphics.draw(fireball_img, fireball.x, fireball.y)
     end
+    for i, fighter in ipairs(fighters) do
+      love.graphics.draw(fighter_img, fighter.x, fighter.y)
+    end
   end)
 end
 
@@ -176,6 +198,44 @@ function love.resize(w, h)
 end
 
 -- helper functions
+function startFighterAttack()
+  local dx = love.math.random(-1, 1)
+  local dy
+  if dx == 0 then
+    local options = {-1, 1} -- don't allow 0 if dx is 0
+    dy = options[love.math.random(1, 2)]
+  else
+    dy = love.math.random(-1, 1)
+  end
+
+  -- put the fighter just offscreen, so that it'll move on-screen
+  local cam_x, cam_y = camera:getPosition()
+  local x
+  if dx > 0 then
+    x = cam_x
+  elseif dx < 0 then
+    x = cam_x + width
+  elseif dx == 0 then
+    x = cam_x + (width / 2)
+  end
+
+  local y
+  if dy > 0 then
+    y = cam_y
+  elseif dy < 0 then
+    y = cam_y + height
+  elseif dy == 0 then
+    y = cam_y + height / 2
+  end
+
+  table.insert(fighters, {
+    x = x,
+    y = y,
+    dx = dx,
+    dy = dy
+  })
+end
+
 function fireMissile(active_turret)
   local fireball = {
     x = (active_turret.x + 2) * 20, -- the center point of the turret is 2,2 in tiles
@@ -302,7 +362,6 @@ function getAdjacentRoads(tile_x, tile_y)
   return adj_roads
 end
 
--- TODO: add bounds-checks & don't get the tile if it's off the edge of the map
 function getAdjacentTiles(tile_x, tile_y)
   return {
     getTile(tile_x - 1, tile_y),
