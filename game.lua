@@ -1,13 +1,8 @@
 -- high-level game logic is here
 function onLeftClick(x, y)
-  -- if isRoad(x, y) then
-  --   print('is road')
-  -- else
-    -- if (canPlaceRoad(x, y)) then
-    --   print('placing road')
+  if not isRoad(x, y) then
+    if (canPlaceRoad(x, y)) then
       placeRoad(x, y)
-  --   else
-  --     print('can NOT place road')
-  --   end
-  -- end
+    end
+  end
 end
