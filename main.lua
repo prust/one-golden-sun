@@ -12,11 +12,14 @@ local music
 local turret_img
 local turret_frames = {}
 local turrets = {}
+local fireballs = {}
+local fireball_img
+local fireball_speed = 500
 local direction = {}
+local init_position = {}
 local map
 local auto_scroll_region = 0.12 -- 12% of the width/height on all sides of window
 local auto_scroll_speed = 500
-local tilesets = {}
 local tilesetsByName = {}
 local types = {'Road'}
 local zoom = 2.0
@@ -35,31 +38,38 @@ function love.load()
   music = love.audio.newSource('assets/intro.mp3')
   music:play()
 
+  fireball_img = love.graphics.newImage('assets/fireball.png')
   turret_img = love.graphics.newImage('assets/turret.png')
   turret_frames[1] = love.graphics.newQuad(80, 0, 80, 80, turret_img:getDimensions())
   direction[1] = {0, -1}
+  init_position[1] = {-0.1, -1.5}
   turret_frames[2] = love.graphics.newQuad(80, 80, 80, 80, turret_img:getDimensions())
   direction[2] = {1, -1}
+  init_position[2] = {0.85, -1.1}
   turret_frames[3] = love.graphics.newQuad(80, 160, 80, 80, turret_img:getDimensions())
-  direction[3] = {1, 0}
+  direction[3] = {1, -0.5}
+  init_position[3] = {1, -0.7}
   turret_frames[4] = love.graphics.newQuad(80, 240, 80, 80, turret_img:getDimensions())
-  direction[4] = {1, 1}
+  direction[4] = {1, 0.5}
+  init_position[4] = {1, 0.2}
   turret_frames[5] = love.graphics.newQuad(0, 0, 80, 80, turret_img:getDimensions())
-  direction[5] = {0, 1}
+  direction[5] = {0, 0.8}
+  init_position[5] = {-0.1, 0.8}
   turret_frames[6] = love.graphics.newQuad(0, 240, 80, 80, turret_img:getDimensions())
-  direction[6] = {-1, 1}
+  direction[6] = {-1, 0.5}
+  init_position[6] = {-1, 0.2}
   turret_frames[7] = love.graphics.newQuad(0, 160, 80, 80, turret_img:getDimensions())
-  direction[7] = {-1, 0}
+  direction[7] = {-1, -0.5}
+  init_position[7] = {-1, -0.7}
   turret_frames[8] = love.graphics.newQuad(0, 80, 80, 80, turret_img:getDimensions())
   direction[8] = {-1, -1}
+  init_position[8] = {-1, -1.1}
 
   map = sti('world2.lua', {'bump'})
+  local tilesets = {}
   for i, tileset in ipairs(map.tilesets) do
     local name = tileset.image_filename:gsub('assets/', ''):gsub('.png', '')
-    local tileset_info = {
-      type = name:find('Road') and 'Road' or nil,
-      tiles = {}
-    }
+    local tileset_info = { tiles = {} }
     tilesets[i] = tileset_info
     tilesetsByName[name] = tileset_info
   end
@@ -98,6 +108,11 @@ function love.update(dt)
     cam_y = cam_y + cam_y_pct * auto_scroll_speed * dt
     
     camera:setPosition(cam_x, cam_y)
+  end
+
+  for i, fireball in ipairs(fireballs) do
+    fireball.x = fireball.x + fireball.dx * fireball_speed * dt
+    fireball.y = fireball.y + fireball.dy * fireball_speed * dt
   end
 end
 
@@ -147,6 +162,9 @@ function love.draw()
 
       love.graphics.draw(turret_img, turret_frames[turret.frame], turret.x * 20, turret.y * 20, 0, 1, 1)
     end
+    for i, fireball in ipairs(fireballs) do
+      love.graphics.draw(fireball_img, fireball.x, fireball.y)
+    end
   end)
 end
 
@@ -159,7 +177,18 @@ end
 
 -- helper functions
 function fireMissile(active_turret)
-  print('missile fired!')
+  local fireball = {
+    x = (active_turret.x + 2) * 20, -- the center point of the turret is 2,2 in tiles
+    y = (active_turret.y + 2) * 20,
+    dx = direction[active_turret.frame][1],
+    dy = direction[active_turret.frame][2]
+  }
+
+  -- move the fireball from the center of the turret to the muzzle,
+  -- so it looks like it's coming from the gun
+  fireball.x = fireball.x + init_position[active_turret.frame][1] * 30
+  fireball.y = fireball.y + init_position[active_turret.frame][2] * 30
+  table.insert(fireballs, fireball)
 end
 
 function isRoad(x, y)
