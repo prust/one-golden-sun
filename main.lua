@@ -31,20 +31,45 @@ local map
 local auto_scroll_region = 0.12 -- 12% of the width/height on all sides of window
 local auto_scroll_speed = 500
 local tilesetsByName = {}
-local types = {'Road'}
+local types = {'ice', ''}
 local zoom = 2.0
 
 local roads = {
   ice = {
+    offset = 0,
     top = 184,
     left = 195,
     right = 197,
-    bottom = 208
-  }
+    bottom = 208,
+    bottom_right = 220,
+    bottom_left = 221,
+    top_right = 232,
+    top_left = 233,
+    top_destr_right = 186,
+    top_destr_left = 187,
+    left_destr_bottom = 188,
+    right_destr_bottom = 189,
+    bottom_destr_right = 198,
+    bottom_destr_left = 199,
+    left_destr_top = 200,
+    right_destr_top = 201
+  },
+  grass = { offset = -183 },
+  crater = { offset = -123 },
+  lava = { offset = 120 },
+  water = { offset = 300},
+  tech = { offset = 357},
+  mountain = { offset = 441}
 }
-_.keys(roads.ice, function(key)
-  roads.grass[key] = roads.ice[key] + 183
-end)
+for type, road_type in pairs(roads) do
+  local offset = road_type.offset
+  for key, val in pairs(roads.ice) do
+    if key ~= 'offset' then
+      road_type[key] = val + offset
+      print(type, key, val + offset)
+    end
+  end
+end
 
 -- GLOBALS shared w/ game.lua
 active_turret = nil
@@ -295,12 +320,8 @@ function placeRoad(x, y)
   local adj_road = getAdjacentRoads(tile_x, tile_y)[1]
   local tiles = tilesetsByName['terrain'].tiles
 
-  local tile_ids
-  if isIceRoad(adj_road) then
-    tile_ids = roads.ice
-  elseif isGrassRoad(adj_road) then
-    tile_ids = roads.grass
-  end
+  local road_type = getRoadType(adj_road)
+  local tile_ids = roads[road_type]
   
   -- this is if the orientations match, this is easy
   if adj_road.alignment == 'vert' then
@@ -312,8 +333,8 @@ function placeRoad(x, y)
 
     -- if the adjacent tile is horiz, this is a "fork" & we need to adjust the corner tiles
     if isHorizontal(adj_road, tile_ids) then
-      placeTile(tiles[adj_road.dir > 0 and 233 or 221], tile_x, tile_y + adj_road.dir)
-      placeTile(tiles[adj_road.dir > 0 and 232 or 220], tile_x + 1, tile_y + adj_road.dir)
+      placeTile(tiles[adj_road.dir > 0 and tile_ids.top_left or tile_ids.bottom_left], tile_x, tile_y + adj_road.dir)
+      placeTile(tiles[adj_road.dir > 0 and tile_ids.top_right or tile_ids.bottom_right], tile_x + 1, tile_y + adj_road.dir)
     end 
   elseif adj_road.alignment == 'horiz' then
     if adj_road.id == tile_ids.bottom then
@@ -324,18 +345,24 @@ function placeRoad(x, y)
 
     -- if the adjacent tile is vert, this is a "fork" & we need to also adjust the corner tiles
     if isVertical(adj_road, tile_ids) then
-      placeTile(tiles[adj_road.dir > 0 and 233 or 232], tile_x + adj_road.dir, tile_y)
-      placeTile(tiles[adj_road.dir > 0 and 221 or 220], tile_x + adj_road.dir, tile_y + 1)
+      placeTile(tiles[adj_road.dir > 0 and tile_ids.top_left or tile_ids.top_right], tile_x + adj_road.dir, tile_y)
+      placeTile(tiles[adj_road.dir > 0 and tile_ids.bottom_left or tile_ids.bottom_right], tile_x + adj_road.dir, tile_y + 1)
     end
   end
 end
 
-function isIceRoad(tile)
-  return tile.id >= 120 and tile.id <= 233
-end
-
-function isGrassRoad(tile)
-  return tile.id >= 0 and tile.id <= 50
+function getRoadType(tile)
+  local props = tile.properties
+  if not props then
+    return warn('tile has no properties: ' .. tile)
+  end
+  if props.type ~= 'road' then
+    return warn('tile not a road tile: ' .. props.type)
+  end
+  if not props.terrain_type then
+    return warn('tile has no terrain_type: ' .. tile.id)
+  end
+  return props.terrain_type
 end
 
 function isVertical(tile, tile_ids)
@@ -428,4 +455,16 @@ function tileCoords(x, y)
   return math.floor(tile_x) + 1, math.floor(tile_y) + 1
 end
 
+-- generic helper functions
+function warn(str)
+  print('WARNING: ' .. str .. '\n' .. debug.traceback())
+end
 
+function printShallow(tbl)
+  str = '{ '
+  for k, v in pairs(tbl) do
+    str = str .. k .. ': ' .. v .. ', '
+  end
+  str = str .. ' }'
+  return str
+end
