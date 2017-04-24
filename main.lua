@@ -66,7 +66,6 @@ for type, road_type in pairs(roads) do
   for key, val in pairs(roads.ice) do
     if key ~= 'offset' then
       road_type[key] = val + offset
-      print(type, key, val + offset)
     end
   end
 end
@@ -318,49 +317,78 @@ end
 function placeRoad(x, y)
   local tile_x, tile_y = tileCoords(x, y)
   local adj_road = getAdjacentRoads(tile_x, tile_y)[1]
-  local adj_tile = getAdjacentNonRoads(tile_x, tile_y)[1]
-  local tiles = tilesetsByName['terrain'].tiles
 
-  local road_type = getTerrainType(adj_tile)
-  local tile_ids = roads[road_type]
+  local adj_road_tile_ids = roads[terrain(adj_tile)]
   
-  -- this is if the orientations match, this is easy
   if adj_road.alignment == 'vert' then
-    if adj_road.id == tile_ids.right then
+    if adj_road.id == adj_road_tile_ids.right then
       tile_x = tile_x - 1
     end
-    placeTile(tiles[tile_ids.left], tile_x, tile_y)
-    placeTile(tiles[tile_ids.right], tile_x + 1, tile_y)
+
+    -- the terrain is based on the adjacent tiles (could be different on each side of the road)
+    placeTile(tile_x, tile_y, 'left', terrain(tile_x - 1, tile_y))
+    placeTile(tile_x + 1, tile_y, 'right', terrain(tile_x + 2, tile_y))
 
     -- if the adjacent tile is horiz, this is a "fork" & we need to adjust the corner tiles
-    if isHorizontal(adj_road, tile_ids) then
-      placeTile(tiles[adj_road.dir > 0 and tile_ids.top_left or tile_ids.bottom_left], tile_x, tile_y + adj_road.dir)
-      placeTile(tiles[adj_road.dir > 0 and tile_ids.top_right or tile_ids.bottom_right], tile_x + 1, tile_y + adj_road.dir)
-    end 
+    if isHorizontal(adj_road, adj_road_tile_ids) then
+      if adj_road.dir > 0 then
+        placeTile(tile_x, tile_y + adj_road.dir, 'top_left', terrain(tile_x - 1, tile_y))
+        placeTile(tile_x + 1, tile_y + adj_road.dir, 'top_right', terrain(tile_x + 2, tile_y))
+      else
+        placeTile(tile_x, tile_y + adj_road.dir, 'bottom_left', terrain(tile_x - 1, tile_y))
+        placeTile(tile_x + 1, tile_y + adj_road.dir, 'bottom_right', terrain(tile_x + 2, tile_y))
+      end
+    end
   elseif adj_road.alignment == 'horiz' then
-    if adj_road.id == tile_ids.bottom then
+    if adj_road.id == roads[terrain(adj_road)].bottom then
       tile_y = tile_y - 1
     end
-    placeTile(tiles[tile_ids.top], tile_x, tile_y)
-    placeTile(tiles[tile_ids.bottom], tile_x, tile_y + 1)
+    placeTile(tile_x, tile_y, 'top', terrain(tile_x, tile_y - 1))
+    placeTile(tile_x, tile_y + 1, 'bottom', terrain(tile_x, tile_y + 2))
 
     -- if the adjacent tile is vert, this is a "fork" & we need to also adjust the corner tiles
-    if isVertical(adj_road, tile_ids) then
-      placeTile(tiles[adj_road.dir > 0 and tile_ids.top_left or tile_ids.top_right], tile_x + adj_road.dir, tile_y)
-      placeTile(tiles[adj_road.dir > 0 and tile_ids.bottom_left or tile_ids.bottom_right], tile_x + adj_road.dir, tile_y + 1)
+    if isVertical(adj_road, adj_road_tile_ids) then
+      if adj_road.dir > 0 then
+        placeTile(tile_x + adj_road.dir, tile_y, 'top_left', terrain(tile_x, tile_y - 1))
+        placeTile(tile_x + adj_road.dir, tile_y + 1, 'bottom_left', terrain(tile_x, tile_y + 2))
+      else
+        placeTile(tile_x + adj_road.dir, tile_y, 'top_right', terrain(tile_x, tile_y - 1))
+        placeTile(tile_x + adj_road.dir, tile_y + 1, 'bottom_right', terrain(tile_x, tile_y + 2))
+      end
     end
   end
 end
 
-function getTerrainType(tile)
-  local props = tile.properties
-  if not props then
-    return warn('tile has no properties: ' .. tile)
+-- can also take a single tile arg: `tileIDs(tile)`
+function terrain(tile_x, tile_y)
+  local tile
+  if type(tile_x) == 'table' then
+    tile = tile_x
+  else
+    tile = getTile(tile_x, tile_y)
   end
-  if not props.terrain_type then
-    return warn('tile has no terrain_type: ' .. tile.id)
+
+  local terrain_type
+  if not tile then
+    warn('no tile found')
+  else
+    local props = tile.properties
+    if not props then
+      warn('tile has no properties: ' .. tile)
+    else
+      if not props.terrain_type then
+        warn('tile has no terrain_type: ' .. tile.id)
+      else
+        terrain_type = props.terrain_type
+      end
+    end
   end
-  return props.terrain_type
+
+  if terrain_type then
+    return terrain_type
+  else
+    return 'ice'
+  end
 end
 
 function isVertical(tile, tile_ids)
@@ -371,7 +399,9 @@ function isHorizontal(tile, tile_ids)
   return tile.id == tile_ids.top or tile.id == tile_ids.bottom
 end
 
-function placeTile(new_tile, tile_x, tile_y)
+function placeTile(tile_x, tile_y, tile_pos, terrain_type)
+  local tiles = tilesetsByName['terrain'].tiles
+  local new_tile = tiles[roads[terrain_type][tile_pos]]
   local prev_instance = getTileInstance(tile_x, tile_y)
   if not prev_instance then
     return
