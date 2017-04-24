@@ -2,8 +2,9 @@ local anim8 = require('anim8')
 local sti = require('sti')
 local gamera = require('gamera')
 local _ = require('underscore')
-local Grid = require ("jumper.grid")
-local Pathfinder = require ("jumper.pathfinder")
+local Grid = require ('jumper.grid')
+local Pathfinder = require ('jumper.pathfinder')
+local bump = require('bump')
 require('game')
 --require('mobdebug').start()
 
@@ -55,11 +56,12 @@ local init_position = {}
 
 local fighters = {}
 local fighter_img
-local fighter_speed = 200
-local next_fighter_attack = love.timer.getTime() + 3 -- in 10 seconds, first fighter attack
-local min_time_btwn_attacks = 30 -- seconds
-local max_time_btwn_attacks = 90 -- seconds
+local fighter_speed = 100
+local next_fighter_attack = love.timer.getTime() + 3 -- in 3 seconds, first fighter attack
+local min_time_btwn_attacks = 5 -- seconds
+local max_time_btwn_attacks = 7 -- seconds
 
+local world -- physics world
 local map
 local auto_scroll_region = 0.12 -- 12% of the width/height on all sides of window
 local auto_scroll_speed = 500
@@ -114,6 +116,7 @@ function love.load()
   camera = gamera.new(0, 0, 2000, 2000) -- TODO: pull this from the map?
   camera:setScale(zoom)
 
+  world = bump.newWorld(50)
   music = love.audio.newSource('assets/intro.mp3')
   music:play()
 
@@ -203,12 +206,43 @@ function love.update(dt)
     camera:setPosition(cam_x, cam_y)
   end
 
+  local all_destroyed = {}
   local entity_tables = {fireballs, fighters}
   for i, ent_table in ipairs(entity_tables) do
     for i, entity in ipairs(ent_table) do
-      entity.x = entity.x + entity.dx * fireball_speed * dt
-      entity.y = entity.y + entity.dy * fireball_speed * dt
+      entity.x = entity.x + entity.dx * entity.speed * dt
+      entity.y = entity.y + entity.dy * entity.speed * dt
+      local actualX, actualY, cols, len = world:move(entity, entity.x, entity.y) -- tell physics world about the move
+      local destroyed = handleCollisions(cols, entity)
+      for i, obj in ipairs(destroyed) do
+        table.insert(all_destroyed, obj)
+      end
     end
+  end
+
+  for i, entity in ipairs(all_destroyed) do
+    if entity.class == 'fighter' then
+      destroy(entity, fighters)
+    elseif entity.class == 'fireball' then
+      destroy(entity, fireballs)
+    end
+  end
+end
+
+function destroy(item, tbl)
+  local ix
+  for i, other in ipairs(tbl) do
+    if other == item then
+      ix = i
+    end
+  end
+
+  if ix then
+    table.remove(tbl, ix)
+    world:remove(item)
+  -- else
+    -- this is expected, since collisions of two moving objects usually happen twice, once from one obj, once from another 
+    --print('item not found in table, class:', item.class, 'table len:', #tbl)
   end
 end
 
@@ -279,6 +313,7 @@ end
 
 -- helper functions
 function startFighterAttack()
+  print('FIGHTER ATTACK')
   local dx = love.math.random(-1, 1)
   local dy
   if dx == 0 then
@@ -289,35 +324,38 @@ function startFighterAttack()
   end
 
   -- put the fighter just offscreen, so that it'll move on-screen
-  local cam_x, cam_y = camera:getPosition()
-  local x
+  local x,y,w,h = camera:getVisible()
   if dx > 0 then
-    x = cam_x
+    x = x
   elseif dx < 0 then
-    x = cam_x + width
+    x = x + w
   elseif dx == 0 then
-    x = cam_x + (width / 2)
+    x = x + w / 2
   end
 
-  local y
   if dy > 0 then
-    y = cam_y
+    y = y
   elseif dy < 0 then
-    y = cam_y + height
+    y = y + h
   elseif dy == 0 then
-    y = cam_y + height / 2
+    y = y + h / 2
   end
 
-  table.insert(fighters, {
+  local fighter = {
+    class = 'fighter',
     x = x,
     y = y,
     dx = dx,
-    dy = dy
-  })
+    dy = dy,
+    speed = fighter_speed
+  }
+  table.insert(fighters, fighter)
+  world:add(fighter, x, y, 120, 120)
 end
 
 function fireMissile(active_turret)
   local fireball = {
+    class = 'fireball',
     x = (active_turret.x + 2) * 20, -- the center point of the turret is 2,2 in tiles
     y = (active_turret.y + 2) * 20,
     dx = direction[active_turret.frame][1],
@@ -328,6 +366,8 @@ function fireMissile(active_turret)
   -- so it looks like it's coming from the gun
   fireball.x = fireball.x + init_position[active_turret.frame][1] * 30
   fireball.y = fireball.y + init_position[active_turret.frame][2] * 30
+  fireball.speed = fireball_speed
+  world:add(fireball, fireball.x, fireball.y, 10, 10)
   table.insert(fireballs, fireball)
 end
 
@@ -691,6 +731,17 @@ function buildRoadMap()
   return pathmap
 end
 
+function handleCollisions(cols, entity)
+  local to_be_destroyed = {}
+  for i, col in ipairs(cols) do
+    if (col.item.class == 'fighter' and col.other.class == 'fireball') or (col.item.class == 'fireball' and col.other.class == 'fighter') then
+      table.insert(to_be_destroyed, col.item)
+      table.insert(to_be_destroyed, col.other)
+    end
+  end
+  return to_be_destroyed
+end
+
 -- generic helper functions
 function warn(str)
   print('WARNING: ' .. str .. '\n' .. debug.traceback())
@@ -719,4 +770,13 @@ function table.slice(tbl, first, last)
     table.insert(sliced, tbl[i])
   end
   return sliced
+end
+
+function reverseTable(t)
+    local reversedTable = {}
+    local itemCount = #t
+    for k, v in ipairs(t) do
+        reversedTable[itemCount + 1 - k] = v
+    end
+    return reversedTable
 end
