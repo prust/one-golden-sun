@@ -61,6 +61,10 @@ local next_fighter_attack = love.timer.getTime() + 3 -- in 3 seconds, first figh
 local min_time_btwn_attacks = 5 -- seconds
 local max_time_btwn_attacks = 7 -- seconds
 
+local expl_img
+local expl_frames
+local explosions = {}
+
 local world -- physics world
 local map
 local auto_scroll_region = 0.12 -- 12% of the width/height on all sides of window
@@ -156,6 +160,10 @@ function love.load()
   energy_frames[5] = love.graphics.newQuad(20, 40, 20, 20, energy_img:getDimensions())
   energy_frames[6] = love.graphics.newQuad(40, 40, 20, 20, energy_img:getDimensions())
 
+  expl_img = love.graphics.newImage('assets/expl-big.png')
+  local g = anim8.newGrid(40, 40, expl_img:getWidth(), expl_img:getHeight())
+  expl_frames = g('1-7',1, '1-6',2)
+
   map = sti('world2.lua', {'bump'})
   local tilesets = {}
   for i, tileset in ipairs(map.tilesets) do
@@ -173,6 +181,10 @@ function love.update(dt)
   if love.timer.getTime() > next_fighter_attack then
     startFighterAttack()
     next_fighter_attack = love.timer.getTime() + love.math.random(min_time_btwn_attacks, max_time_btwn_attacks)
+  end
+
+  for i, expl in ipairs(explosions) do
+    expl.anim:update(dt)
   end
 
   map:update(dt)
@@ -222,6 +234,12 @@ function love.update(dt)
 
   for i, entity in ipairs(all_destroyed) do
     if entity.class == 'fighter' then
+      local expl = {
+        x = entity.x + 40,
+        y = entity.y + 40
+      }
+      expl.anim = anim8.newAnimation(expl_frames, 0.1, function() destroy(expl, explosions) end)
+      table.insert(explosions, expl)
       destroy(entity, fighters)
     elseif entity.class == 'fireball' then
       destroy(entity, fireballs)
@@ -239,10 +257,14 @@ function destroy(item, tbl)
 
   if ix then
     table.remove(tbl, ix)
-    world:remove(item)
+
+    -- explosions aren't in the physics world, but we still destroy() them
+    if world:hasItem(item) then
+      world:remove(item)
+    end
   -- else
     -- this is expected, since collisions of two moving objects usually happen twice, once from one obj, once from another 
-    --print('item not found in table, class:', item.class, 'table len:', #tbl)
+    -- print('item not found in table, class:', item.class, 'table len:', #tbl)
   end
 end
 
@@ -282,6 +304,10 @@ end
 function love.draw()
   camera:draw(function(l, t, w, h)
     map:draw()
+    for i, energy in ipairs(energy_sprites) do
+      love.graphics.draw(energy_img, energy.frame, energy.x, energy.y, 0, 1, 1)
+    end
+
     for i, turret in ipairs(turrets) do
       -- wrap-around frames, protect against bad inputs from game.lua
       if turret.frame < 1 then
@@ -292,14 +318,17 @@ function love.draw()
 
       love.graphics.draw(turret_img, turret_frames[turret.frame], turret.x * 20, turret.y * 20, 0, 1, 1)
     end
+
     for i, fireball in ipairs(fireballs) do
       love.graphics.draw(fireball_img, fireball.x, fireball.y)
     end
     for i, fighter in ipairs(fighters) do
       love.graphics.draw(fighter_img, fighter.x, fighter.y)
     end
-    for i, energy in ipairs(energy_sprites) do
-      love.graphics.draw(energy_img, energy.frame, energy.x, energy.y, 0, 1, 1)
+
+    
+    for i, expl in ipairs(explosions) do
+      expl.anim:draw(expl_img, expl.x, expl.y)
     end
   end)
 end
