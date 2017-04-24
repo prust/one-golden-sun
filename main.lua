@@ -318,9 +318,10 @@ end
 function placeRoad(x, y)
   local tile_x, tile_y = tileCoords(x, y)
   local adj_road = getAdjacentRoads(tile_x, tile_y)[1]
+  local adj_tile = getAdjacentNonRoads(tile_x, tile_y)[1]
   local tiles = tilesetsByName['terrain'].tiles
 
-  local road_type = getRoadType(adj_road)
+  local road_type = getTerrainType(adj_tile)
   local tile_ids = roads[road_type]
   
   -- this is if the orientations match, this is easy
@@ -351,13 +352,10 @@ function placeRoad(x, y)
   end
 end
 
-function getRoadType(tile)
+function getTerrainType(tile)
   local props = tile.properties
   if not props then
     return warn('tile has no properties: ' .. tile)
-  end
-  if props.type ~= 'road' then
-    return warn('tile not a road tile: ' .. props.type)
   end
   if not props.terrain_type then
     return warn('tile has no terrain_type: ' .. tile.id)
@@ -388,6 +386,17 @@ end
 
 function getType(tile)
   return tile and tile.properties and tile.properties.type
+end
+
+function getAdjacentNonRoads(tile_x, tile_y)
+  local adj_tiles = getAdjacentTiles(tile_x, tile_y)
+  local adj_non_roads = {}
+  for i, tile in ipairs(adj_tiles) do
+    if getType(tile) == 'road' then
+      table.insert(adj_non_roads, tile)
+    end
+  end
+  return adj_non_roads
 end
 
 function getAdjacentRoads(tile_x, tile_y)
