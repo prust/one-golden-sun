@@ -293,7 +293,11 @@ end
 
 function canPlaceRoad(x, y)
   local tile_x, tile_y = tileCoords(x, y)
-  return #getAdjacentRoads(tile_x, tile_y) == 1
+  return #getAdjacentRoads(tile_x, tile_y) == 1 or (#getAdjacentRoads(tile_x, tile_y) == 2 and sameAlignment(getAdjacentRoads(tile_x, tile_y)))
+end
+
+function sameAlignment(adj_roads)
+  return adj_roads[1].alignment == adj_roads[2].alignment
 end
 
 function canPlaceTurret(x, y)
@@ -316,9 +320,19 @@ end
 
 function placeRoad(x, y)
   local tile_x, tile_y = tileCoords(x, y)
-  local adj_road = getAdjacentRoads(tile_x, tile_y)[1]
+  local adj_roads = getAdjacentRoads(tile_x, tile_y)
+  
+  -- if we're connecting two adjacent roads (on either side)
+  -- pay attention to the one whose image alignment doesn't match the alignment we're coming in at
+  -- because that'll be a fork and needs its corners fixed
+  local adj_road
+  if adj_roads[2] and (getRoadAlignment(adj_roads[2]) ~= adj_roads[2].alignment) then
+    adj_road = adj_roads[2]
+  else
+    adj_road = adj_roads[1]
+  end
 
-  local adj_road_tile_ids = roads[terrain(adj_tile)]
+  local adj_road_tile_ids = roads[terrain(adj_road)]
   
   if adj_road.alignment == 'vert' then
     if adj_road.id == adj_road_tile_ids.right then
@@ -330,7 +344,7 @@ function placeRoad(x, y)
     placeTile(tile_x + 1, tile_y, 'right', terrain(tile_x + 2, tile_y))
 
     -- if the adjacent tile is horiz, this is a "fork" & we need to adjust the corner tiles
-    if isHorizontal(adj_road, adj_road_tile_ids) then
+    if getRoadAlignment(adj_road) == 'horiz' then
       if adj_road.dir > 0 then
         placeTile(tile_x, tile_y + adj_road.dir, 'top_left', terrain(tile_x - 1, tile_y))
         placeTile(tile_x + 1, tile_y + adj_road.dir, 'top_right', terrain(tile_x + 2, tile_y))
@@ -347,7 +361,7 @@ function placeRoad(x, y)
     placeTile(tile_x, tile_y + 1, 'bottom', terrain(tile_x, tile_y + 2))
 
     -- if the adjacent tile is vert, this is a "fork" & we need to also adjust the corner tiles
-    if isVertical(adj_road, adj_road_tile_ids) then
+    if getRoadAlignment(adj_road) == 'vert' then
       if adj_road.dir > 0 then
         placeTile(tile_x + adj_road.dir, tile_y, 'top_left', terrain(tile_x, tile_y - 1))
         placeTile(tile_x + adj_road.dir, tile_y + 1, 'bottom_left', terrain(tile_x, tile_y + 2))
@@ -391,12 +405,19 @@ function terrain(tile_x, tile_y)
   end
 end
 
-function isVertical(tile, tile_ids)
-  return tile.id == tile_ids.left or tile.id == tile_ids.right
-end
+function getRoadAlignment(tile)
+  local terrain_type = terrain(tile)
+  local tile_ids = roads[terrain_type]
 
-function isHorizontal(tile, tile_ids)
-  return tile.id == tile_ids.top or tile.id == tile_ids.bottom
+  local tile_id = tile.id
+  if tile_id == tile_ids.left or tile_id == tile_ids.right then
+    return 'vert'
+  elseif tile_id == tile_ids.top or tile_id == tile_ids.bottom then
+    return 'horiz'
+  else
+    warn('tile_id ' .. tile_id .. ' not found in IDs for terrain ' .. terrain_type .. ': ' .. printShallow(tile_ids))
+    return 'vert' -- default
+  end
 end
 
 function placeTile(tile_x, tile_y, tile_pos, terrain_type)
