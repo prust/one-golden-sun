@@ -44,7 +44,6 @@ local starports = {
   { x = 19+1, y = 24+1 },
   { x = 20+1, y = 74+1 },
   { x = 24+1, y = 2+1 },
-  { x = 4+1, y = 3+1 },
   { x = 81+1, y = 15+1 },
   { x = 84 + 1, y = 67 + 1},
   { x = 68+1, y = 74+1}
@@ -64,8 +63,8 @@ local fighter_speed = 200
 local next_fighter_attack = love.timer.getTime() + 2 -- time in seconds until first fighter attack
 local min_time_btwn_attacks = 4 -- seconds
 local max_time_btwn_attacks = 6 -- seconds
-local min_time_btwn_shots = 0.2
-local max_time_btwn_shots = 0.5
+local min_time_btwn_shots = 1
+local max_time_btwn_shots = 3
 
 local expl_img
 local expl_frames
@@ -304,6 +303,7 @@ function love.update(dt)
         table.insert(all_destroyed, obj)
       end
 
+      -- if something strays outside the game world, silently destroy it
       if entity.x < -500 or entity.y < -500 or entity.x > width + 500 or entity.y > height + 500 then
         if entity.class == 'fireball' then
           tbl = fireballs
@@ -330,6 +330,17 @@ function love.update(dt)
       destroy(entity, fighters)
     elseif entity.class == 'fireball' then
       destroy(entity, fireballs)
+    elseif entity.class == 'road' then
+      playSfx('explosion', 0.5)
+      local expl = {
+        x = entity.x * 20,
+        y = entity.y * 20
+      }
+      expl.anim = anim8.newAnimation(expl_frames, 0.1, function() destroy(expl, explosions) end)
+      table.insert(explosions, expl)
+      removeFromWorld(entity)
+    elseif entity.class == 'fighter_bullet' then
+      destroy(entity, fireballs)
     end
   end
 end
@@ -346,12 +357,16 @@ function destroy(item, tbl)
     table.remove(tbl, ix)
 
     -- explosions aren't in the physics world, but we still destroy() them
-    if world:hasItem(item) then
-      world:remove(item)
-    end
+    removeFromWorld(item)
   -- else
     -- this is expected, since collisions of two moving objects usually happen twice, once from one obj, once from another 
     -- print('item not found in table, class:', item.class, 'table len:', #tbl)
+  end
+end
+
+function removeFromWorld(item)
+  if world:hasItem(item) then
+    world:remove(item)
   end
 end
 
@@ -516,7 +531,7 @@ function startFighterAttack()
     dy = dy,
     speed = fighter_speed,
     rotation = math.atan2(dy, dx) + math.rad(90),
-    next_shot = curr_time + math.random(min_time_btwn_shots, max_time_btwn_shots)
+    next_shot = curr_time-- + math.random(min_time_btwn_shots, max_time_btwn_shots)
   }
   table.insert(fighters, fighter)
   world:add(fighter, x, y, 120, 120)
@@ -617,6 +632,7 @@ function placeRoad(x, y)
     -- the terrain is based on the adjacent tiles (could be different on each side of the road)
     placeTile(tile_x, tile_y, 'left', terrain(tile_x - 1, tile_y))
     placeTile(tile_x + 1, tile_y, 'right', terrain(tile_x + 2, tile_y))
+    world:add({class = 'road', x = tile_x, y = tile_y, alignment = 'vert'}, tile_x * 20, tile_y * 20, 40, 20)
 
     -- if the adjacent tile is horiz, this is a "fork" & we need to adjust the corner tiles
     if getRoadAlignment(adj_perp_road) == 'horiz' then
@@ -634,6 +650,7 @@ function placeRoad(x, y)
     end
     placeTile(tile_x, tile_y, 'top', terrain(tile_x, tile_y - 1))
     placeTile(tile_x, tile_y + 1, 'bottom', terrain(tile_x, tile_y + 2))
+    world:add({class = 'road', x = tile_x, y = tile_y, alignment = 'horiz'}, tile_x * 20, tile_y * 20, 20, 40)
 
     -- if the adjacent tile is vert, this is a "fork" & we need to also adjust the corner tiles
     if getRoadAlignment(adj_perp_road) == 'vert' then
@@ -941,6 +958,8 @@ function handleCollisions(cols, entity)
   for i, col in ipairs(cols) do
     if (col.item.class == 'fighter' and col.other.class == 'fireball') or (col.item.class == 'fireball' and col.other.class == 'fighter') then
       table.insert(to_be_destroyed, col.item)
+      table.insert(to_be_destroyed, col.other)
+    elseif col.item.class == 'fighter_bullet' and col.other.class == 'road' then
       table.insert(to_be_destroyed, col.other)
     end
   end
