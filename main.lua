@@ -5,6 +5,8 @@ local _ = require('underscore')
 local Grid = require ('jumper.grid')
 local Pathfinder = require ('jumper.pathfinder')
 local bump = require('bump')
+local ripple = require('ripple')
+local cron = require('cron')
 require('game')
 --require('mobdebug').start()
 
@@ -56,22 +58,45 @@ local init_position = {}
 
 local fighters = {}
 local fighter_img
-local fighter_speed = 100
-local next_fighter_attack = love.timer.getTime() + 3 -- in 3 seconds, first fighter attack
-local min_time_btwn_attacks = 5 -- seconds
-local max_time_btwn_attacks = 7 -- seconds
+local fighter_w
+local fighter_h
+local fighter_speed = 200
+local next_fighter_attack = love.timer.getTime() + 2 -- time in seconds until first fighter attack
+local min_time_btwn_attacks = 4 -- seconds
+local max_time_btwn_attacks = 6 -- seconds
 
 local expl_img
 local expl_frames
 local explosions = {}
+
+local font
+local prompt = {
+  text = {
+    'Build roads between the one working receiver station and the nearby stations.',
+    'You can build roads by clicking on destroyed roads or next to completed roads.'
+  },
+  text_ix = 1
+}
+local is_paused = true
+local curr_time = love.timer.getTime()
 
 local world -- physics world
 local map
 local auto_scroll_region = 0.12 -- 12% of the width/height on all sides of window
 local auto_scroll_speed = 500
 local tilesetsByName = {}
-local types = {'ice', ''}
 local zoom = 2.0
+
+local tags = {
+  sfx = ripple.newTag(),
+  music = ripple.newTag(),
+  master = ripple.newTag()
+}
+local sounds
+local music
+local music_vol = 1
+
+local clocks = {}
 
 local roads = {
   ice = {
@@ -121,10 +146,38 @@ function love.load()
   camera:setScale(zoom)
 
   world = bump.newWorld(50)
-  music = love.audio.newSource('assets/intro.mp3')
-  music:play()
+  music = {
+    gameplay = ripple.newSound('assets/intro.mp3', {
+      loop = true,
+      tags = {tags.master, tags.music},
+      mode = 'stream'
+    })
+  }
+  sounds = {
+    alarm = ripple.newSound('assets/alarm_02.wav', {
+      tags = {tags.master, tags.sfx}
+    }),
+    fly_by = ripple.newSound('assets/fly_by.wav', {
+      tags = {tags.master, tags.sfx}
+    }),
+    gut_puncher = ripple.newSound('assets/gut_puncher_10.wav', {
+      tags = {tags.master, tags.sfx}
+    }),
+    explosion = ripple.newSound('assets/long_thin_impact.wav', {
+      tags = {tags.master, tags.sfx}
+    }),
+    build = ripple.newSound('assets/filter_hit.wav', {
+      tags = {tags.master, tags.sfx}
+    })
+  }
+  --sounds.alarm:play()
+  music.gameplay:play()
+  tags.music:setVolume(music_vol)
 
   fighter_img = love.graphics.newImage('assets/enemy-ship.png')
+  fighter_w = fighter_img:getWidth()
+  fighter_h = fighter_img:getHeight()
+  print('fighter half w/h:', fighter_w / 2, fighter_h / 2)
   fireball_img = love.graphics.newImage('assets/fireball.png')
   turret_img = love.graphics.newImage('assets/turret.png')
   turret_frames[1] = love.graphics.newQuad(80, 0, 80, 80, turret_img:getDimensions())
@@ -164,6 +217,9 @@ function love.load()
   local g = anim8.newGrid(40, 40, expl_img:getWidth(), expl_img:getHeight())
   expl_frames = g('1-7',1, '1-6',2)
 
+  font = love.graphics.newFont("assets/OpenSans-Bold.ttf", 15)
+  love.graphics.setFont(font)
+
   map = sti('world2.lua', {'bump'})
   local tilesets = {}
   for i, tileset in ipairs(map.tilesets) do
@@ -178,9 +234,18 @@ function love.load()
 end
 
 function love.update(dt)
-  if love.timer.getTime() > next_fighter_attack then
+  if is_paused then
+    return
+  end
+  curr_time = curr_time + dt
+
+  for i, clock in ipairs(clocks) do
+    clock:update(dt)
+  end
+
+  if curr_time > next_fighter_attack then
     startFighterAttack()
-    next_fighter_attack = love.timer.getTime() + love.math.random(min_time_btwn_attacks, max_time_btwn_attacks)
+    next_fighter_attack = curr_time + love.math.random(min_time_btwn_attacks, max_time_btwn_attacks)
   end
 
   for i, expl in ipairs(explosions) do
@@ -234,6 +299,7 @@ function love.update(dt)
 
   for i, entity in ipairs(all_destroyed) do
     if entity.class == 'fighter' then
+      playSfx('explosion', 0.5)
       local expl = {
         x = entity.x + 40,
         y = entity.y + 40
@@ -269,28 +335,54 @@ function destroy(item, tbl)
 end
 
 function love.keypressed(key, scancode, isrepeat)
-  if onLeft and (key == 'left' or key == 'a') then
-    onLeft()
-  elseif onRight and (key == 'right' or key == 'd') then
-    onRight()
-  elseif onUp and (key == 'up' or key == 'w') then
-    onUp()
-  elseif onDown and (key == 'down' or key == 's') then
-    onDown()
-  elseif onSpace and (key == 'space') then
-    onSpace()
+  if is_paused then
+    prompt.text_ix = prompt.text_ix + 1
+    if prompt.text_ix > #prompt.text then
+      is_paused = false
+    end
+  else
+    if key == 'p' then
+      is_paused = true
+      prompt.text = {'Paused'}
+      prompt.text_ix = 1
+    elseif onLeft and (key == 'left' or key == 'a') then
+      onLeft()
+    elseif onRight and (key == 'right' or key == 'd') then
+      onRight()
+    elseif onUp and (key == 'up' or key == 'w') then
+      onUp()
+    elseif onDown and (key == 'down' or key == 's') then
+      onDown()
+    elseif onSpace and (key == 'space') then
+      onSpace()
+    end
+  end
+end
+
+function love.mousepressed(x, y, button, istouch)
+  if is_paused then
+    prompt.text_ix = prompt.text_ix + 1
+    if prompt.text_ix > #prompt.text then
+      is_paused = false
+    end
   end
 end
 
 function love.mousereleased(x, y, button, istouch)
-  if button == 1 and onLeftClick then
-    onLeftClick(x, y)
-  elseif button == 2 and onRightClick then
-    onRightClick(x, y)
+  if not is_paused then
+    if button == 1 and onLeftClick then
+      onLeftClick(x, y)
+    elseif button == 2 and onRightClick then
+      onRightClick(x, y)
+    end
   end
 end
 
 function love.wheelmoved(x, y)
+  if is_paused then
+    return
+  end
+
   if y > 0 then
     zoom = 2.0
   elseif y < 0 then
@@ -323,7 +415,8 @@ function love.draw()
       love.graphics.draw(fireball_img, fireball.x, fireball.y)
     end
     for i, fighter in ipairs(fighters) do
-      love.graphics.draw(fighter_img, fighter.x, fighter.y)
+      -- we rotate around the center, so we need to adjust the orientation by the center
+      love.graphics.draw(fighter_img, fighter.x + fighter_w / 2, fighter.y + fighter_h / 2, fighter.rotation, 1, 1, fighter_w / 2, fighter_h / 2)
     end
 
     
@@ -331,6 +424,25 @@ function love.draw()
       expl.anim:draw(expl_img, expl.x, expl.y)
     end
   end)
+  
+  if is_paused then
+    local text = prompt.text[prompt.text_ix]
+    local text_w = font:getWidth(text)
+    local text_h = font:getHeight()
+    local text_x = width / 2 - text_w / 2
+    local text_y = height / 2 - 8
+    local padding_vert = 5
+    local padding_horiz = 10
+
+    love.graphics.setColor(hex('eeeeee'))
+    love.graphics.rectangle('fill', text_x - padding_horiz, text_y - padding_vert, text_w + padding_horiz * 2, text_h + padding_vert * 2)
+
+    love.graphics.setColor(hex('29aae2'))
+    love.graphics.rectangle('line', text_x - padding_horiz, text_y - padding_vert, text_w + padding_horiz * 2, text_h + padding_vert * 2)
+    love.graphics.print(text, text_x, text_y)
+
+    love.graphics.setColor(hex('ffffff'))
+  end
 end
 
 function love.resize(w, h)
@@ -342,7 +454,8 @@ end
 
 -- helper functions
 function startFighterAttack()
-  print('FIGHTER ATTACK')
+  playSfx('alarm')
+--  playSfx('fly_by')
   local dx = love.math.random(-1, 1)
   local dy
   if dx == 0 then
@@ -376,13 +489,15 @@ function startFighterAttack()
     y = y,
     dx = dx,
     dy = dy,
-    speed = fighter_speed
+    speed = fighter_speed,
+    rotation = math.atan2(dy, dx) + math.rad(90)
   }
   table.insert(fighters, fighter)
   world:add(fighter, x, y, 120, 120)
 end
 
 function fireMissile(active_turret)
+  playSfx('gut_puncher', 0.3)
   local fireball = {
     class = 'fireball',
     x = (active_turret.x + 2) * 20, -- the center point of the turret is 2,2 in tiles
@@ -491,6 +606,7 @@ function placeRoad(x, y)
     end
   end
 
+  playSfx('build', 0.3)
   updatePathsToStarports()
 end
 
@@ -643,9 +759,12 @@ function updatePathsToStarports()
   finder:setMode('ORTHOGONAL') -- we don't allow diagonal
 
   -- reset working state
+  local prev_num_working = 0
   for i, starport in ipairs(starports) do
+    if starport.working then
+      prev_num_working = prev_num_working + 1
+    end
     starport.working = false
-    starport.connected = false
   end
   starports[1].working = true
 
@@ -685,6 +804,22 @@ function updatePathsToStarports()
   function compareByLen(a,b)
     return a.len < b.len
   end
+
+  local new_num_working = 0
+  for i, starport in ipairs(starports) do
+    if starport.working then
+      new_num_working = new_num_working + 1
+    end
+  end
+
+  if new_num_working == 2 and prev_num_working == 1 then
+    is_paused = true
+    num_remaining = #starports - 2
+    prompt.text = {
+      'Congratulations, you connected your first receiver station! ' .. num_remaining .. ' to go.',
+      'Build quickly, before enemy air raids destroy your work.'}
+    prompt.text_ix = 1
+  end
 end
 
 function addEnergySprites(path, start, stop)
@@ -700,9 +835,9 @@ function addEnergySprites(path, start, stop)
   for i, node in ipairs(nodes) do
     local prev_coords = getCoords(nodes[i - 1], node)
     local next_coords = getCoords(nodes[i + 1], node)
-    print(node.x, node.y, '(prev:', prev_coords, ', next:', next_coords, ')')
+    -- print(node.x, node.y, '(prev:', prev_coords, ', next:', next_coords, ')')
     local coords_ix = prev_coords and next_coords and (prev_coords .. '_' .. next_coords)
-    print('coords_ix: ', coords_ix)
+    -- print('coords_ix: ', coords_ix)
     local frame_ix = energy_coords_to_frames[coords_ix] or energy_coords_to_frames2[coords_ix]
     if frame_ix then
       table.insert(energy_sprites, {
@@ -771,6 +906,14 @@ function handleCollisions(cols, entity)
   return to_be_destroyed
 end
 
+function playSfx(sfx_name, vol)
+  -- tags.music:setVolume(0.5)
+  sounds[sfx_name]:play({volume = vol or 1})
+  -- table.insert(clocks, cron.after(3, function()
+  --   tags.music:setVolume(music_vol)
+  -- end))
+end
+
 -- generic helper functions
 function warn(str)
   print('WARNING: ' .. str .. '\n' .. debug.traceback())
@@ -808,4 +951,9 @@ function reverseTable(t)
         reversedTable[itemCount + 1 - k] = v
     end
     return reversedTable
+end
+
+function hex(hex_str)
+  local _,_,r,g,b = hex_str:find('(%x%x)(%x%x)(%x%x)')
+  return { tonumber(r, 16), tonumber(g, 16), tonumber(b, 16) }
 end
