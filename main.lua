@@ -2,6 +2,8 @@ local anim8 = require('anim8')
 local sti = require('sti')
 local gamera = require('gamera')
 local _ = require('underscore')
+local Grid = require ("jumper.grid")
+local Pathfinder = require ("jumper.pathfinder")
 require('game')
 --require('mobdebug').start()
 
@@ -13,6 +15,36 @@ local music
 local turret_img
 local turret_frames = {}
 local turrets = {}
+
+local energy_img
+local energy_frames = {}
+local energy_sprites = {}
+local energy_coords_to_frames = {
+  below_right = 1,
+  below_left = 2,
+  below_above = 3,
+  above_right = 4,
+  right_left = 5,
+  left_above = 6
+}
+local energy_coords_to_frames2 = {
+  right_below = 1,
+  left_below = 2,
+  above_below = 3,
+  right_above = 4,
+  left_right = 5,
+  left_above = 6
+}
+
+-- +1 b/c tiled is 0-based but Lua (& our pathfinder) is 1-based
+local starports = {
+  { x = 19+1, y = 24+1 },
+  { x = 20+1, y = 74+1 },
+  { x = 24+1, y = 2+1 },
+  { x = 4+1, y = 3+1 },
+  { x = 81+1, y = 15+1 },
+  { x = 68+1, y = 74+1}
+}
 
 local fireballs = {}
 local fireball_img
@@ -111,6 +143,14 @@ function love.load()
   turret_frames[8] = love.graphics.newQuad(0, 80, 80, 80, turret_img:getDimensions())
   direction[8] = {-1, -1}
   init_position[8] = {-1, -1.1}
+
+  energy_img = love.graphics.newImage('assets/energy.png')
+  energy_frames[1] = love.graphics.newQuad(0, 0, 20, 20, energy_img:getDimensions())
+  energy_frames[2] = love.graphics.newQuad(20, 0, 20, 20, energy_img:getDimensions())
+  energy_frames[3] = love.graphics.newQuad(0, 20, 20, 20, energy_img:getDimensions())
+  energy_frames[4] = love.graphics.newQuad(0, 40, 20, 20, energy_img:getDimensions())
+  energy_frames[5] = love.graphics.newQuad(20, 40, 20, 20, energy_img:getDimensions())
+  energy_frames[6] = love.graphics.newQuad(40, 40, 20, 20, energy_img:getDimensions())
 
   map = sti('world2.lua', {'bump'})
   local tilesets = {}
@@ -223,6 +263,9 @@ function love.draw()
     for i, fighter in ipairs(fighters) do
       love.graphics.draw(fighter_img, fighter.x, fighter.y)
     end
+    for i, energy in ipairs(energy_sprites) do
+      love.graphics.draw(energy_img, energy.frame, energy.x, energy.y, 0, 1, 1)
+    end
   end)
 end
 
@@ -326,9 +369,15 @@ function placeRoad(x, y)
   -- pay attention to the one whose image alignment doesn't match the alignment we're coming in at
   -- because that'll be a fork and needs its corners fixed
   local adj_road
+  local adj_perp_road
   if adj_roads[2] and (getRoadAlignment(adj_roads[2]) ~= adj_roads[2].alignment) then
+    adj_perp_road = adj_roads[2]
+    adj_road = adj_roads[1]
+  elseif adj_roads[2] then
+    adj_perp_road = adj_roads[1]
     adj_road = adj_roads[2]
   else
+    adj_perp_road = adj_roads[1]
     adj_road = adj_roads[1]
   end
 
@@ -344,13 +393,13 @@ function placeRoad(x, y)
     placeTile(tile_x + 1, tile_y, 'right', terrain(tile_x + 2, tile_y))
 
     -- if the adjacent tile is horiz, this is a "fork" & we need to adjust the corner tiles
-    if getRoadAlignment(adj_road) == 'horiz' then
-      if adj_road.dir > 0 then
-        placeTile(tile_x, tile_y + adj_road.dir, 'top_left', terrain(tile_x - 1, tile_y))
-        placeTile(tile_x + 1, tile_y + adj_road.dir, 'top_right', terrain(tile_x + 2, tile_y))
+    if getRoadAlignment(adj_perp_road) == 'horiz' then
+      if adj_perp_road.dir > 0 then
+        placeTile(tile_x, tile_y + adj_perp_road.dir, 'top_left', terrain(tile_x - 1, tile_y))
+        placeTile(tile_x + 1, tile_y + adj_perp_road.dir, 'top_right', terrain(tile_x + 2, tile_y))
       else
-        placeTile(tile_x, tile_y + adj_road.dir, 'bottom_left', terrain(tile_x - 1, tile_y))
-        placeTile(tile_x + 1, tile_y + adj_road.dir, 'bottom_right', terrain(tile_x + 2, tile_y))
+        placeTile(tile_x, tile_y + adj_perp_road.dir, 'bottom_left', terrain(tile_x - 1, tile_y))
+        placeTile(tile_x + 1, tile_y + adj_perp_road.dir, 'bottom_right', terrain(tile_x + 2, tile_y))
       end
     end
   elseif adj_road.alignment == 'horiz' then
@@ -361,16 +410,18 @@ function placeRoad(x, y)
     placeTile(tile_x, tile_y + 1, 'bottom', terrain(tile_x, tile_y + 2))
 
     -- if the adjacent tile is vert, this is a "fork" & we need to also adjust the corner tiles
-    if getRoadAlignment(adj_road) == 'vert' then
-      if adj_road.dir > 0 then
-        placeTile(tile_x + adj_road.dir, tile_y, 'top_left', terrain(tile_x, tile_y - 1))
-        placeTile(tile_x + adj_road.dir, tile_y + 1, 'bottom_left', terrain(tile_x, tile_y + 2))
+    if getRoadAlignment(adj_perp_road) == 'vert' then
+      if adj_perp_road.dir > 0 then
+        placeTile(tile_x + adj_perp_road.dir, tile_y, 'top_left', terrain(tile_x, tile_y - 1))
+        placeTile(tile_x + adj_perp_road.dir, tile_y + 1, 'bottom_left', terrain(tile_x, tile_y + 2))
       else
-        placeTile(tile_x + adj_road.dir, tile_y, 'top_right', terrain(tile_x, tile_y - 1))
-        placeTile(tile_x + adj_road.dir, tile_y + 1, 'bottom_right', terrain(tile_x, tile_y + 2))
+        placeTile(tile_x + adj_perp_road.dir, tile_y, 'top_right', terrain(tile_x, tile_y - 1))
+        placeTile(tile_x + adj_perp_road.dir, tile_y + 1, 'bottom_right', terrain(tile_x, tile_y + 2))
       end
     end
   end
+
+  updatePathsToStarports()
 end
 
 -- can also take a single tile arg: `tileIDs(tile)`
@@ -515,6 +566,130 @@ function tileCoords(x, y)
   return math.floor(tile_x) + 1, math.floor(tile_y) + 1
 end
 
+function updatePathsToStarports()
+  energy_sprites = {}
+  local grid = Grid(buildRoadMap())
+  local finder = Pathfinder(grid, 'ASTAR', 1) -- i saw strange jumping issues w/ JPS
+  finder:setMode('ORTHOGONAL') -- we don't allow diagonal
+
+  -- reset working state
+  for i, starport in ipairs(starports) do
+    starport.working = false
+    starport.connected = false
+  end
+  starports[1].working = true
+
+  -- don't recurse immediately into every possible path
+  -- instead, only take the shortest path
+  -- from there, add more potential paths to the arsenal
+  -- but again, only take the shortest path -- whether that's a path that was just discovered or a previous one
+  local paths = {}
+  function checkPaths(starport)
+    for i, other in ipairs(starports) do
+      if other ~= starport then
+        local path = finder:getPath(starport.x, starport.y, other.x, other.y)
+        if path then
+          local len = path:getLength()
+          table.insert(paths, {start = starport, stop = other, path = path, len = len})
+        end
+      end
+    end
+
+    -- each time filter to ones that haven't been turned on yet
+    -- sorted by the distance
+    paths = _.filter(paths, function(path)
+      return path.stop.working == false
+    end)
+    table.sort(paths, compareByLen)
+
+    local path = paths[1]
+    if path then
+      path.stop.working = true
+      addEnergySprites(path.path, path.start, path.stop)
+      checkPaths(path.stop)
+    end
+  end
+
+  checkPaths(starports[1])
+
+  function compareByLen(a,b)
+    return a.len < b.len
+  end
+end
+
+function addEnergySprites(path, start, stop)
+  -- transform their iterator into a normal array
+  -- this is necessary so I can easily look at the next & prev items
+  local nodes = {}
+  for node, count in path:nodes() do
+    node = { x = node:getX(), y = node:getY() }
+    table.insert(nodes, node)
+    print(node.x, node.y)
+  end
+
+  for i, node in ipairs(nodes) do
+    local prev_coords = getCoords(nodes[i - 1], node)
+    local next_coords = getCoords(nodes[i + 1], node)
+    print(node.x, node.y, '(prev:', prev_coords, ', next:', next_coords, ')')
+    local coords_ix = prev_coords and next_coords and (prev_coords .. '_' .. next_coords)
+    print('coords_ix: ', coords_ix)
+    local frame_ix = energy_coords_to_frames[coords_ix] or energy_coords_to_frames2[coords_ix]
+    if frame_ix then
+      table.insert(energy_sprites, {
+        x = (node.x - 1) * 20, -- -1 b/c we're switching from 1-based lua to 0-based screen
+        y = (node.y - 1) * 20,
+        frame = energy_frames[frame_ix]
+      })
+    end
+  end
+end
+
+function getCoords(prev_next, node)
+  if not prev_next then
+    return -- don't render the start or end tile b/c these would render on top of a starbase
+  end
+
+  local x = prev_next.x - node.x
+  local y = prev_next.y - node.y
+  if x == -1 then
+    return 'left'
+  elseif x == 1 then
+    return 'right'
+  elseif y == -1 then
+    return 'above'
+  elseif y == 1 then
+    return 'below'
+  else
+    print('non-adjacent nodes returned by pathfinder: ' .. x .. ', ' .. y)
+  end
+end
+
+-- the kind of 0 and 1 map required by the Jumper pathfinder lib
+function buildRoadMap()
+  local terrain_data = map.layers['Terrain'].data
+  local pathmap = {}
+  for tile_y, row in ipairs(terrain_data) do
+    local map_row = {}
+    table.insert(pathmap, map_row)
+    for tile_x, tile in ipairs(row) do
+      local val
+      if tile then
+        val = getType(map.tiles[tile.gid]) == 'road' and 1 or 0
+      else
+        val = 0
+      end
+      -- if (tile_x == 20 and tile_y == 74) or (tile_x == 19 and tile_y == 24) then
+      --   io.write(tostring(val) .. '*')
+      -- else
+      --   io.write(tostring(val) .. ' ')
+      -- end
+      table.insert(map_row, val)
+    end
+    -- io.write('\n')
+  end
+  return pathmap
+end
+
 -- generic helper functions
 function warn(str)
   print('WARNING: ' .. str .. '\n' .. debug.traceback())
@@ -527,4 +702,20 @@ function printShallow(tbl)
   end
   str = str .. ' }'
   return str
+end
+
+function shallowCopyArray(orig)
+  copy = {}
+  for orig_key, orig_value in ipairs(orig) do
+      copy[orig_key] = orig_value
+  end
+  return copy
+end
+
+function table.slice(tbl, first, last)
+  local sliced = {}
+  for i = first or 1, last or #tbl do
+    table.insert(sliced, tbl[i])
+  end
+  return sliced
 end
