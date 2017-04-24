@@ -337,7 +337,7 @@ end
 function love.keypressed(key, scancode, isrepeat)
   if is_paused then
     prompt.text_ix = prompt.text_ix + 1
-    if prompt.text_ix > #prompt.text then
+    if prompt.text_ix > #prompt.text and not is_game_over then
       is_paused = false
     end
   else
@@ -362,7 +362,7 @@ end
 function love.mousepressed(x, y, button, istouch)
   if is_paused then
     prompt.text_ix = prompt.text_ix + 1
-    if prompt.text_ix > #prompt.text then
+    if prompt.text_ix > #prompt.text and not is_game_over then
       is_paused = false
     end
   end
@@ -427,22 +427,26 @@ function love.draw()
   
   if is_paused then
     local text = prompt.text[prompt.text_ix]
-    local text_w = font:getWidth(text)
-    local text_h = font:getHeight()
-    local text_x = width / 2 - text_w / 2
-    local text_y = height / 2 - 8
-    local padding_vert = 5
-    local padding_horiz = 10
+    if text then
+      local text_w = font:getWidth(text)
+      local text_h = font:getHeight()
+      local text_x = width / 2 - text_w / 2
+      local text_y = height / 2 - 8
+      local padding_vert = 5
+      local padding_horiz = 10
 
-    love.graphics.setColor(hex('eeeeee'))
-    love.graphics.rectangle('fill', text_x - padding_horiz, text_y - padding_vert, text_w + padding_horiz * 2, text_h + padding_vert * 2)
+      love.graphics.setColor(hex('eeeeee'))
+      love.graphics.rectangle('fill', text_x - padding_horiz, text_y - padding_vert, text_w + padding_horiz * 2, text_h + padding_vert * 2)
 
-    love.graphics.setColor(hex('29aae2'))
-    love.graphics.rectangle('line', text_x - padding_horiz, text_y - padding_vert, text_w + padding_horiz * 2, text_h + padding_vert * 2)
-    love.graphics.print(text, text_x, text_y)
+      love.graphics.setColor(hex('29aae2'))
+      love.graphics.rectangle('line', text_x - padding_horiz, text_y - padding_vert, text_w + padding_horiz * 2, text_h + padding_vert * 2)
+      love.graphics.print(text, text_x, text_y)
 
-    love.graphics.setColor(hex('ffffff'))
+      love.graphics.setColor(hex('ffffff'))
+    end
   end
+
+  love.graphics.print(getNumRemainingStations() .. ' stations to activate', 10, height - 10 - font:getHeight())
 end
 
 function love.resize(w, h)
@@ -758,12 +762,10 @@ function updatePathsToStarports()
   local finder = Pathfinder(grid, 'ASTAR', 1) -- i saw strange jumping issues w/ JPS
   finder:setMode('ORTHOGONAL') -- we don't allow diagonal
 
+  local prev_num_working = getNumWorkingStations()
+
   -- reset working state
-  local prev_num_working = 0
   for i, starport in ipairs(starports) do
-    if starport.working then
-      prev_num_working = prev_num_working + 1
-    end
     starport.working = false
   end
   starports[1].working = true
@@ -805,20 +807,22 @@ function updatePathsToStarports()
     return a.len < b.len
   end
 
-  local new_num_working = 0
-  for i, starport in ipairs(starports) do
-    if starport.working then
-      new_num_working = new_num_working + 1
-    end
-  end
-
-  if new_num_working == 2 and prev_num_working == 1 then
+  local num_working = getNumWorkingStations()
+  local num_remaining = getNumRemainingStations()
+  if num_working == 2 and prev_num_working == 1 then
     is_paused = true
-    num_remaining = #starports - 2
     prompt.text = {
       'Congratulations, you connected your first receiver station! ' .. num_remaining .. ' to go.',
       'Build quickly, before enemy air raids destroy your work.'}
     prompt.text_ix = 1
+  elseif num_remaining == 0 then
+    is_paused = true
+    prompt.text = {
+      'You did it! All receiver stations are now networked and sharing power!',
+      'The nations of the world can now defend themselves and rebuild.'
+    }
+    prompt.text_ix = 1
+    is_game_over = true
   end
 end
 
@@ -956,4 +960,24 @@ end
 function hex(hex_str)
   local _,_,r,g,b = hex_str:find('(%x%x)(%x%x)(%x%x)')
   return { tonumber(r, 16), tonumber(g, 16), tonumber(b, 16) }
+end
+
+function getNumWorkingStations()
+  local num_working = 0
+  for i, starport in ipairs(starports) do
+    if starport.working then
+      num_working = num_working + 1
+    end
+  end
+  return num_working
+end
+
+function getNumRemainingStations()
+  local num_remaining = 0
+  for i, starport in ipairs(starports) do
+    if not starport.working then
+      num_remaining = num_remaining + 1
+    end
+  end
+  return num_remaining
 end
