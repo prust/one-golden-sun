@@ -134,6 +134,13 @@ for type, road_type in pairs(roads) do
     end
   end
 end
+roads.ice.terrain = 133
+roads.grass.terrain = 288
+roads.crater.terrain = 256
+roads.lava.terrain = 313
+roads.water.terrain = 136
+roads.tech.terrain = 570
+roads.mountain.terrain = 493
 
 -- GLOBALS shared w/ game.lua
 active_turret = nil
@@ -171,14 +178,13 @@ function love.load()
       tags = {tags.master, tags.sfx}
     })
   }
-  --sounds.alarm:play()
+
   music.gameplay:play()
   tags.music:setVolume(music_vol)
 
   fighter_img = love.graphics.newImage('assets/enemy-ship.png')
   fighter_w = fighter_img:getWidth()
   fighter_h = fighter_img:getHeight()
-  print('fighter half w/h:', fighter_w / 2, fighter_h / 2)
   fireball_img = love.graphics.newImage('assets/fireball.png')
   turret_img = love.graphics.newImage('assets/turret.png')
   turret_frames[1] = love.graphics.newQuad(80, 0, 80, 80, turret_img:getDimensions())
@@ -331,6 +337,7 @@ function love.update(dt)
     elseif entity.class == 'fireball' then
       destroy(entity, fireballs)
     elseif entity.class == 'road' then
+      print('road destroyed at ' .. entity.x .. ',' .. entity.y)
       playSfx('explosion', 0.5)
       local expl = {
         x = entity.x * 20,
@@ -339,7 +346,9 @@ function love.update(dt)
       expl.anim = anim8.newAnimation(expl_frames, 0.1, function() destroy(expl, explosions) end)
       table.insert(explosions, expl)
       removeFromWorld(entity)
+      deleteRoad(entity)
     elseif entity.class == 'fighter_bullet' then
+      print('fighter_bullet hit road')
       destroy(entity, fireballs)
     end
   end
@@ -600,6 +609,19 @@ function placeTurret(x, y)
   local tile_x, tile_y = tileCoords(x, y)
   active_turret = {x = tile_x - 2, y = tile_y - 3, frame = 2}
   table.insert(turrets, active_turret)
+end
+
+function deleteRoad(road_ent)
+  local x = road_ent.x
+  local y = road_ent.y
+
+  placeTile(x, y, 'terrain', terrain(x, y))
+  if road_ent.alignment == 'vert' then
+    placeTile(x + 1, y, 'terrain', terrain(x + 1, y))
+  elseif road_ent.alignment == 'horiz' then
+    placeTile(x, y + 1, 'terrain', terrain(x, y + 1))
+  end
+  updatePathsToStarports()
 end
 
 function placeRoad(x, y)
@@ -887,7 +909,6 @@ function addEnergySprites(path, start, stop)
   for node, count in path:nodes() do
     node = { x = node:getX(), y = node:getY() }
     table.insert(nodes, node)
-    print(node.x, node.y)
   end
 
   for i, node in ipairs(nodes) do
@@ -961,6 +982,7 @@ function handleCollisions(cols, entity)
       table.insert(to_be_destroyed, col.other)
     elseif col.item.class == 'fighter_bullet' and col.other.class == 'road' then
       table.insert(to_be_destroyed, col.other)
+      table.insert(to_be_destroyed, col.item)
     end
   end
   return to_be_destroyed
