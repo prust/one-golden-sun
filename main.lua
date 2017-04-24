@@ -64,6 +64,8 @@ local fighter_speed = 200
 local next_fighter_attack = love.timer.getTime() + 2 -- time in seconds until first fighter attack
 local min_time_btwn_attacks = 4 -- seconds
 local max_time_btwn_attacks = 6 -- seconds
+local min_time_btwn_shots = 0.2
+local max_time_btwn_shots = 0.5
 
 local expl_img
 local expl_frames
@@ -248,6 +250,13 @@ function love.update(dt)
     next_fighter_attack = curr_time + love.math.random(min_time_btwn_attacks, max_time_btwn_attacks)
   end
 
+  for i, fighter in ipairs(fighters) do
+    if curr_time > fighter.next_shot then
+      fighterShot(fighter)
+      fighter.next_shot = curr_time + love.math.random(min_time_btwn_shots, max_time_btwn_shots)
+    end
+  end
+
   for i, expl in ipairs(explosions) do
     expl.anim:update(dt)
   end
@@ -293,6 +302,18 @@ function love.update(dt)
       local destroyed = handleCollisions(cols, entity)
       for i, obj in ipairs(destroyed) do
         table.insert(all_destroyed, obj)
+      end
+
+      if entity.x < -500 or entity.y < -500 or entity.x > width + 500 or entity.y > height + 500 then
+        if entity.class == 'fireball' then
+          tbl = fireballs
+        elseif entity.class == 'fighter' then
+          tbl = fighters
+        end
+
+        if tbl then
+          destroy(entity, tbl)
+        end
       end
     end
   end
@@ -494,10 +515,26 @@ function startFighterAttack()
     dx = dx,
     dy = dy,
     speed = fighter_speed,
-    rotation = math.atan2(dy, dx) + math.rad(90)
+    rotation = math.atan2(dy, dx) + math.rad(90),
+    next_shot = curr_time + math.random(min_time_btwn_shots, max_time_btwn_shots)
   }
   table.insert(fighters, fighter)
   world:add(fighter, x, y, 120, 120)
+end
+
+function fighterShot(fighter)
+  playSfx('gut_puncher', 0.22)
+  local fireball = {
+    class = 'fighter_bullet',
+    x = fighter.x + fighter_w / 2 + fighter.dx * 50, -- the center point of the turret is 2,2 in tiles
+    y = fighter.y + fighter_h / 2 + fighter.dy * 50,
+    dx = fighter.dx,
+    dy = fighter.dy
+  }
+
+  fireball.speed = fireball_speed
+  world:add(fireball, fireball.x, fireball.y, 10, 10)
+  table.insert(fireballs, fireball)
 end
 
 function fireMissile(active_turret)
