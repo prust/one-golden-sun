@@ -21,12 +21,6 @@ Almost all the game art is by [Daniel Cook](http://www.lostgarden.com/). It was 
 
 The game will be hosted at https://github.com/prust/one-golden-sun.
 
-Here's a screenshot:
+Here's more recent screenshot:
 
-![first screenshot](screenshot1.png)
-
-TODO:
-
-* Attacks by enemy fighters
-* Ability to shoot down enemy fighters
-* Fighters should be able to shoot or bomb roads and turrets
+![screenshot](preview.png)
