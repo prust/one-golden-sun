@@ -41,12 +41,14 @@ local energy_coords_to_frames2 = {
 
 -- +1 b/c tiled is 0-based but Lua (& our pathfinder) is 1-based
 local starports = {
-  { x = 19+1, y = 24+1 },
-  { x = 20+1, y = 74+1 },
-  { x = 24+1, y = 2+1 },
-  { x = 81+1, y = 15+1 },
-  { x = 84 + 1, y = 67 + 1},
-  { x = 68+1, y = 74+1}
+  { x = 19+1, y = 74+1 },
+  { x = 82+1, y = 5 + 1},
+  { x = 4+1, y = 40+1},
+  { x = 20+1, y = 74+51 },
+  { x = 24+1, y = 2+51 },
+  { x = 81+1, y = 15+51 },
+  { x = 84 + 1, y = 67 + 51},
+  { x = 68+1, y = 74+51}
 }
 
 local fireballs = {}
