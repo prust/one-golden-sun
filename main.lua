@@ -62,7 +62,7 @@ local fighter_img
 local fighter_w
 local fighter_h
 local fighter_speed = 200
-local next_fighter_attack = love.timer.getTime() + 1--20 -- time in seconds until first fighter attack
+local next_fighter_attack = love.timer.getTime() + 30 -- time in seconds until first fighter attack
 local min_time_btwn_passes = 4
 local max_time_btwn_passes = 6
 local min_time_btwn_attacks = 50 -- seconds
