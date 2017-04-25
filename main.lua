@@ -154,6 +154,7 @@ function love.load()
   love.window.setMode(width, height, {resizable=true, vsync=false, minwidth=400, minheight=300})
   camera = gamera.new(0, 0, 2000, 2000) -- TODO: pull this from the map?
   camera:setScale(zoom)
+  camera:setPosition(starports[1].x * 20, starports[1].y * 20)
 
   world = bump.newWorld(50)
   music = {
