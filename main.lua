@@ -62,9 +62,11 @@ local fighter_img
 local fighter_w
 local fighter_h
 local fighter_speed = 200
-local next_fighter_attack = love.timer.getTime() + 2 -- time in seconds until first fighter attack
-local min_time_btwn_attacks = 4 -- seconds
-local max_time_btwn_attacks = 6 -- seconds
+local next_fighter_attack = love.timer.getTime() + 1--20 -- time in seconds until first fighter attack
+local min_time_btwn_passes = 4
+local max_time_btwn_passes = 6
+local min_time_btwn_attacks = 50 -- seconds
+local max_time_btwn_attacks = 70 -- seconds
 local min_time_btwn_shots = 1
 local max_time_btwn_shots = 3
 
@@ -98,6 +100,8 @@ local tags = {
 local sounds
 local music
 local music_vol = 1
+local has_completed_first = false
+local has_had_attack = false
 
 local clocks = {}
 
@@ -144,6 +148,9 @@ roads.water.terrain = 136
 roads.tech.terrain = 570
 roads.mountain.terrain = 493
 
+local game_width = 2000
+local game_height = 3000
+
 -- GLOBALS shared w/ game.lua
 active_turret = nil
 
@@ -152,7 +159,7 @@ function love.load()
   love.window.setTitle('One Golden Sun ' .. ver)
   width, height = love.graphics.getDimensions()
   love.window.setMode(width, height, {resizable=true, vsync=false, minwidth=400, minheight=300})
-  camera = gamera.new(0, 0, 2000, 2000) -- TODO: pull this from the map?
+  camera = gamera.new(0, 0, game_width, game_height) -- TODO: pull this from the map?
   camera:setScale(zoom)
   camera:setPosition(starports[1].x * 20, starports[1].y * 20)
 
@@ -255,7 +262,7 @@ function love.update(dt)
 
   if curr_time > next_fighter_attack then
     startFighterAttack()
-    next_fighter_attack = curr_time + love.math.random(min_time_btwn_attacks, max_time_btwn_attacks)
+    next_fighter_attack = curr_time + love.math.random(min_time_btwn_passes, max_time_btwn_passes)
   end
 
   for i, fighter in ipairs(fighters) do
@@ -313,7 +320,7 @@ function love.update(dt)
       end
 
       -- if something strays outside the game world, silently destroy it
-      if entity.x < -500 or entity.y < -500 or entity.x > width + 500 or entity.y > height + 500 then
+      if entity.x < -500 or entity.y < -500 or entity.x > game_width + 500 or entity.y > game_height + 500 then
         if entity.class == 'fireball' then
           tbl = fireballs
         elseif entity.class == 'fighter' then
@@ -337,6 +344,7 @@ function love.update(dt)
       expl.anim = anim8.newAnimation(expl_frames, 0.1, function() destroy(expl, explosions) end)
       table.insert(explosions, expl)
       destroy(entity, fighters)
+      next_fighter_attack = curr_time + love.math.random(min_time_btwn_attacks, max_time_btwn_attacks)
     elseif entity.class == 'fireball' then
       destroy(entity, fireballs)
     elseif entity.class == 'road' then
@@ -547,6 +555,17 @@ function startFighterAttack()
   }
   table.insert(fighters, fighter)
   world:add(fighter, x, y, 120, 120)
+
+  if not has_had_attack then
+    is_paused = true
+    prompt.text = {
+      'An air raid is firing on your work!',
+      'Right-click to build a turret, then use the arrow keys and spacebar to shoot the aircraft',
+      'If you do not shoot it, it will keep making passes!'
+    }
+    prompt.text_ix = 1
+    has_had_attack = true
+  end
 end
 
 function fighterShot(fighter)
@@ -888,7 +907,8 @@ function updatePathsToStarports()
 
   local num_working = getNumWorkingStations()
   local num_remaining = getNumRemainingStations()
-  if num_working == 2 and prev_num_working == 1 then
+  if num_working == 2 and not has_completed_first then
+    has_completed_first = true
     is_paused = true
     prompt.text = {
       'Congratulations, you connected your first receiver station! ' .. num_remaining .. ' to go.',
