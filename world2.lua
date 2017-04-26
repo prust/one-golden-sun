@@ -77,7 +77,8 @@ return {
         {
           id = 7,
           properties = {
-            ["terrain_type"] = "grass"
+            ["terrain_type"] = "grass",
+            ["type"] = "road"
           }
         },
         {
@@ -89,7 +90,8 @@ return {
         {
           id = 9,
           properties = {
-            ["terrain_type"] = "grass"
+            ["terrain_type"] = "grass",
+            ["type"] = "road"
           }
         },
         {
