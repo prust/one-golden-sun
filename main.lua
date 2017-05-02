@@ -132,8 +132,11 @@ local roads = {
   tech = { offset = 357},
   mountain = { offset = 441}
 }
+
+local terrains = {}
 for type, road_type in pairs(roads) do
   local offset = road_type.offset
+  table.insert(terrains, type)
   for key, val in pairs(roads.ice) do
     if key ~= 'offset' then
       road_type[key] = val + offset
@@ -480,7 +483,56 @@ function love.draw()
       expl.anim:draw(expl_img, expl.x, expl.y)
     end
   end)
-  
+  love.graphics.push()
+  love.graphics.translate(width, height)
+  love.graphics.scale(3, 3)
+  love.graphics.translate( - 100,  - 150)
+  love.graphics.setPointSize(3)
+  love.graphics.rectangle ('fill', 0, 0, 100, 150)
+  local pixels
+  for i, terrain_type in ipairs(terrains) do
+    pixels = {}
+    if terrain_type == 'water' then
+      love.graphics.setColor(0, 0, 255)
+    elseif terrain_type == 'lava' then
+      love.graphics.setColor(255, 0, 0)
+    elseif terrain_type == 'ice' then
+      love.graphics.setColor(150, 150, 255)
+    elseif terrain_type == 'grass' then
+      love.graphics.setColor(0, 255, 0)
+    elseif terrain_type == 'mountain' then
+      love.graphics.setColor(222, 184, 135)
+    elseif terrain_type == 'crater' then
+      love.graphics.setColor(139, 69, 19)
+
+    else
+      love.graphics.setColor(0, 0, 0)
+    end
+    for x = 1, 100 do
+      for y = 1, 150 do
+        if terrain(x, y) == terrain_type then
+          table.insert(pixels, {x - 0.5, y - 0.5})
+        end
+      end
+    end
+    love.graphics.points(pixels)
+  end
+
+
+  pixels = {}
+  love.graphics.setColor(122, 122, 122)
+  for x = 1, 100 do
+    for y = 1, 150 do
+      if getType(getTile(x, y)) == 'road' then
+        table.insert(pixels, {x - 0.5, y - 0.5})
+      end
+    end
+  end
+  love.graphics.points(pixels)
+  love.graphics.setColor(255, 255, 255)
+  love.graphics.pop()
+
+
   if is_paused then
     local text = prompt.text[prompt.text_ix]
     if text then
