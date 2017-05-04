@@ -62,7 +62,7 @@ local fighter_img
 local fighter_w
 local fighter_h
 local fighter_speed = 200
-local next_fighter_attack = love.timer.getTime() + 30 -- time in seconds until first fighter attack
+local next_fighter_attack = love.timer.getTime() + 60 -- time in seconds until first fighter attack
 local min_time_btwn_passes = 4
 local max_time_btwn_passes = 6
 local min_time_btwn_attacks = 50 -- seconds
@@ -584,6 +584,10 @@ function fighterShot(fighter)
 end
 
 function fireMissile(active_turret)
+  if active_turret.frame == nil or direction[active_turret.frame] == nil then
+    return
+  end
+
   playSfx('gut_puncher', 0.3)
   local fireball = {
     class = 'fireball',
