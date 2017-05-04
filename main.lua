@@ -584,6 +584,10 @@ function fighterShot(fighter)
 end
 
 function fireMissile(active_turret)
+  if active_turret.frame == nil or direction[active_turret.frame] == nil then
+    return
+  end
+  
   playSfx('gut_puncher', 0.3)
   local fireball = {
     class = 'fireball',
