@@ -485,9 +485,9 @@ function love.draw()
   end)
   love.graphics.push()
   love.graphics.translate(width, height)
-  love.graphics.scale(3, 3)
+  love.graphics.scale(2, 2)
   love.graphics.translate( - 100,  - 150)
-  love.graphics.setPointSize(3)
+  love.graphics.setPointSize(2)
   love.graphics.rectangle ('fill', 0, 0, 100, 150)
   local pixels
   for i, terrain_type in ipairs(terrains) do
@@ -529,6 +529,12 @@ function love.draw()
     end
   end
   love.graphics.points(pixels)
+
+  love.graphics.setColor(255, 165, 0)
+  for i, starport in ipairs(starports) do
+    love.graphics.rectangle('fill', starport.x - 1, starport.y - 3, 2, 3)
+  end
+
   love.graphics.setColor(255, 255, 255)
   love.graphics.pop()
 
