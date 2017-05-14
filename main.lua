@@ -62,7 +62,7 @@ local fighter_img
 local fighter_w
 local fighter_h
 local fighter_speed = 200
-local next_fighter_attack = love.timer.getTime() + 60 -- time in seconds until first fighter attack
+local next_fighter_attack = love.timer.getTime() + 1000000 -- million seconds until first fighter attack (replaced once the player completes 1st road)
 local min_time_btwn_passes = 4
 local max_time_btwn_passes = 6
 local min_time_btwn_attacks = 50 -- seconds
@@ -918,6 +918,7 @@ function updatePathsToStarports()
       'Congratulations, you connected your first receiver station! ' .. num_remaining .. ' to go.',
       'Build quickly, before enemy air raids destroy your work.'}
     prompt.text_ix = 1
+    next_fighter_attack = curr_time + love.math.random(min_time_btwn_attacks, max_time_btwn_attacks)
   elseif num_remaining == 0 then
     is_paused = true
     prompt.text = {
