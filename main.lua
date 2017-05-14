@@ -55,6 +55,7 @@ local fireballs = {}
 local fireball_img
 local fireball_speed = 500
 local direction = {}
+local dir_rad = {}
 local init_position = {}
 
 local fighters = {}
@@ -222,6 +223,11 @@ function love.load()
   direction[8] = {-1, -1}
   init_position[8] = {-1, -1.1}
 
+  for i, dir in ipairs(direction) do
+    table.insert(dir_rad, math.atan2(dir[1], dir[2]))
+    print("dir radians: " .. math.atan2(dir[1], dir[2]))
+  end
+
   energy_img = love.graphics.newImage('assets/energy.png')
   energy_frames[1] = love.graphics.newQuad(0, 0, 20, 20, energy_img:getDimensions())
   energy_frames[2] = love.graphics.newQuad(20, 0, 20, 20, energy_img:getDimensions())
@@ -274,6 +280,26 @@ function love.update(dt)
 
   for i, expl in ipairs(explosions) do
     expl.anim:update(dt)
+  end
+
+  for i, turret in ipairs(turrets) do
+    if turret ~= active_turret and #fighters > 0 then
+      local fighter = fighters[#fighters]
+      local dx = fighter.x - turret.x * 20
+      local dy = fighter.y - turret.y * 20
+      local rad = math.atan2(dx, dy)
+
+      local closest_val
+      local closest_ix
+      for i, dir in ipairs(dir_rad) do
+        local diff = math.abs(rad - dir)
+        if closest_val == nil or diff < closest_val then
+          closest_val = diff
+          closest_ix = i
+        end
+      end
+      turret.frame = closest_ix
+    end
   end
 
   map:update(dt)
@@ -362,6 +388,14 @@ function love.update(dt)
       print('fighter_bullet hit road')
       destroy(entity, fireballs)
     end
+  end
+end
+
+function round(num) 
+  if num >= 0 then
+    return math.floor(num+.5) 
+  else
+    return math.ceil(num-.5)
   end
 end
 
